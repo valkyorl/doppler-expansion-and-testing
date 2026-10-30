@@ -8,9 +8,9 @@ Where each part of *Doppler-security-26* is implemented. Status is one of
 
 | Paper | Concept | Module / function | Status |
 |---|---|---|---|
-| §2.1, Eq. 7 | Attack plan A = {(s_i, d_i, r_i)} | `attack_plans.py` | planned |
-| §2.1 | Attack success: L_e + Σ r_i > c_e | `damage.py` | planned |
-| §2.4, Eq. 1 | Transferability τ(A_i, G_j) | `damage.py` | planned |
+| §2.1, Eq. 7 | Attack plan A = {(s_i, d_i, r_i)} | `model.AttackPlan`, `attack_plans.make_plan` | implemented |
+| §2.1 | Attack success: L_e + Σ r_i > c_e | `damage.evaluate_damage` (links carry at most c_e; loss by D11) | implemented |
+| §2.4, Eq. 1 | Transferability τ(A_i, G_j) | `damage.relative_damage` (D1, D2) | implemented |
 
 ## §3 Reconnaissance
 
@@ -21,12 +21,14 @@ Where each part of *Doppler-security-26* is implemented. Status is one of
 | §3.1.1, Eq. 4 | Ollivier–Ricci ranking | `recon/rtt_ricci.py` | planned |
 | §3.1.2, Eq. 5 | Observed traceroute graph Ĝ_tr | `recon/traceroute.py` | planned (simulated probes) |
 | §3.1.2, Eq. 6 | Betweenness ranking B(e) | `recon/traceroute.py` | planned |
-| §3.2 | Oracle attacker | `recon/oracle.py` | planned |
-| §3.2 | No-knowledge attacker | `recon/random_plan.py` | planned |
-| §3.3, Eq. 8 | Equal split of budget R_A | `attack_plans.py` | planned |
+| §3.2 | Oracle attacker | `recon/oracle.oracle_plan` (I3) | implemented |
+| §3.2 | No-knowledge attacker | `recon/random_plan.random_plan` | implemented |
+| §3.3, Eq. 8 | Equal split of budget R_A | `attack_plans.make_plan`; budget as a capacity multiple: `attack_plans.budget_from_capacity` (D4) | implemented |
 | §3.4 | Precision, recall, F1 | `recon/metrics.py` | planned |
 | §3.4, Eq. 9 | P@k, path-level critical-link recovery | `recon/metrics.py` | planned |
-| §3.4, Eq. 10 | Normalized effectiveness η | `damage.py` | planned |
+| §3.4 | Attack-effectiveness measures (bullets 1 to 4) | `model.DamageReport`, `damage.evaluate_damage` (I1, I2) | implemented |
+| §3.4 | Budget needed for a given disruption (bullet 5) | `experiments/recon_eval.py` | planned (Phase 2) |
+| §3.4, Eq. 10 | Normalized effectiveness η | `damage.relative_damage` (same ratio as τ) | implemented |
 | §3.5 | Real measurements on operational networks | loader interface in `recon/` | gap (no raw data) |
 
 ## §4 Doppler
@@ -34,7 +36,7 @@ Where each part of *Doppler-security-26* is implemented. Status is one of
 | Paper | Concept | Module / function | Status |
 |---|---|---|---|
 | §4.3 | Control loop (Fig. 1) | `controller.py`; diagram in `docs/diagrams/control-loop.md` | planned (diagram done) |
-| §4.3 input 4 | Estimated benign demand D_t | `traffic.py` | planned |
+| §4.3 input 4 | Estimated benign demand D_t | `traffic.benign_demand` (I5) | implemented |
 | §4.4 | Feasible link set E* | `feasibility.py` | planned (reach only; optical data is a gap) |
 | §4.5, Eq. 11 | Transponder limit | reused: `src/onset/open_doppler.py` | implemented (shared code) |
 | §4.6, Eq. 12–14 | Flow conservation | reused: `src/onset/open_doppler.py` | implemented (shared code; demand-direction bug fixed in Phase 0) |

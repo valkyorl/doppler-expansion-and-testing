@@ -876,6 +876,209 @@ def _fair_share(
     return shares
 
 
+SHARING_MODES = ("proportional", "max_min")
+"""How an overloaded link divides its capacity in :func:`deliver_flows`."""
+
+
+def _link_rule(capacity: float, arrivals: Sequence[float], sharing: str) -> float:
+    """The drop rule an overloaded link applies, given the rates arriving at it.
+
+    ``proportional``: a scale in (0, 1]; every flow keeps ``arrival * scale``.
+    ``max_min``: a cap level; every flow keeps ``min(arrival, level)``, with
+    the level chosen by water-filling so the link is exactly full.
+    A link that is not overloaded drops nothing (scale 1, level infinity).
+    """
+    total = sum(arrivals)
+    if total <= capacity:
+        return 1.0 if sharing == "proportional" else math.inf
+    if sharing == "proportional":
+        return capacity / total
+    remaining = capacity
+    ordered = sorted(arrivals)
+    for position, arrival in enumerate(ordered):
+        count = len(ordered) - position
+        if arrival * count >= remaining:
+            return remaining / count
+        remaining -= arrival
+    return math.inf
+
+
+def _apply_rule(arrival: float, rule: float, sharing: str) -> float:
+    return arrival * rule if sharing == "proportional" else min(arrival, rule)
+
+
+def _rule_change(old: float, new: float) -> float:
+    if math.isinf(old) and math.isinf(new):
+        return 0.0
+    if math.isinf(old) or math.isinf(new):
+        return math.inf
+    return abs(new - old) / max(1.0, abs(old))
+
+
+def _capacity_constrained_delivery(
+    graph: nx.DiGraph,
+    path_flows: Sequence[tuple[tuple[str, ...], float]],
+    sharing: str,
+    *,
+    max_iterations: int = 1000,
+    tolerance: float = 1e-10,
+) -> tuple[list[float], dict[Edge, float]]:
+    """Deliver path flows so that no link ever carries more than its capacity.
+
+    Every link applies one drop rule (see :func:`_link_rule`) to all flows
+    crossing it, whichever hop of their path they are on. The rate at which
+    a flow arrives at a link depends on drops at earlier links, and each
+    link's rule depends on those arrival rates, so rules and rates are
+    solved together: walk every flow along its path under the current rules,
+    recompute each link's rule from the resulting arrival rates, move halfway
+    toward it (damping prevents oscillation), and repeat until no rule
+    changes by more than ``tolerance`` (relative).
+
+    Returns (delivered rate per path-flow index, load carried per edge).
+    Raises ``RuntimeError`` if the rules do not settle, rather than return a
+    result that may exceed capacities.
+    """
+    edges = {edge for path, _ in path_flows for edge in itertools.pairwise(path)}
+    no_drop = 1.0 if sharing == "proportional" else math.inf
+    rules = dict.fromkeys(edges, no_drop)
+
+    def walk() -> tuple[list[float], dict[Edge, list[float]]]:
+        arrivals: dict[Edge, list[float]] = defaultdict(list)
+        delivered: list[float] = []
+        for path, demand in path_flows:
+            rate = demand
+            for edge in itertools.pairwise(path):
+                arrivals[edge].append(rate)
+                rate = _apply_rule(rate, rules[edge], sharing)
+            delivered.append(rate)
+        return delivered, arrivals
+
+    for _ in range(max_iterations):
+        _, arrivals = walk()
+        largest_change = 0.0
+        for edge in edges:
+            target = _link_rule(
+                float(graph.edges[edge]["capacity"]), arrivals[edge], sharing
+            )
+            old = rules[edge]
+            largest_change = max(largest_change, _rule_change(old, target))
+            if math.isinf(old) or math.isinf(target):
+                rules[edge] = target
+            else:
+                rules[edge] = old + 0.5 * (target - old)
+        if largest_change <= tolerance:
+            break
+    else:
+        raise RuntimeError(
+            f"Link drop rules did not settle within {max_iterations} iterations"
+        )
+
+    delivered, arrivals = walk()
+    carried = {
+        edge: sum(_apply_rule(a, rules[edge], sharing) for a in rates)
+        for edge, rates in arrivals.items()
+    }
+    return delivered, carried
+
+
+@dataclass(frozen=True)
+class FlowDelivery:
+    """Outcome of pushing labelled flows through a routed network.
+
+    ``offered`` and ``delivered`` are keyed by the caller's flow labels.
+    ``expected_loads`` is the load each directed edge is offered before any
+    drops; ``actual_loads`` is what it carries after drops, never more than
+    its capacity.
+    """
+
+    offered: dict[object, float]
+    delivered: dict[object, float]
+    expected_loads: dict[Edge, float]
+    actual_loads: dict[Edge, float]
+
+
+def route_demands(
+    graph: nx.DiGraph,
+    demands: Mapping[Commodity, float],
+    te_method: str,
+    budget: int = 3,
+    *,
+    seed: int | None = None,
+) -> dict[Commodity, list[Route]]:
+    """Route demands in memory with the named TE method.
+
+    Same routing as :func:`evaluate`, without reading or writing files.
+    ``graph`` edges need ``capacity`` and ``cost`` attributes.
+    """
+    method = te_method.lower().lstrip("-")
+    if method == "ecmp":
+        return _ecmp_routes(graph, demands, budget)
+    if method == "mcf":
+        return _mcf_routes(graph, demands)
+    if method in ("semimcfraeke", "semimcfraekeft"):
+        hosts = {node for commodity in demands for node in commodity}
+        if method == "semimcfraeke":
+            scheme = _raecke_paths(graph, hosts, seed=seed)
+        else:
+            scheme = _oblivious_paths_ft(graph, hosts, seed=seed)
+        cand = _prune_scheme(scheme, budget)
+        return _semimcf_routes(graph, demands, cand)
+    raise ValueError(
+        f"Unsupported in-process TE method {te_method!r}; "
+        f"supported methods are -ecmp, -mcf, -semimcfraeke, -semimcfraekeft"
+    )
+
+
+def deliver_flows(
+    graph: nx.DiGraph,
+    flows: Mapping[object, tuple[Commodity, float]],
+    routes: Mapping[Commodity, Sequence[Route]],
+    *,
+    sharing: str = "proportional",
+) -> FlowDelivery:
+    """Push labelled flows along precomputed routes and report delivery per label.
+
+    Unlike :func:`evaluate`, several flows may share one source-destination
+    pair (for example benign and attack traffic between the same PoPs) and
+    still be tracked separately. Each flow is split over its commodity's
+    routes by the routes' probabilities. A flow whose commodity has no route
+    delivers nothing.
+
+    Loss model: every link carries at most its capacity in total, whatever
+    hop each flow is on (see :func:`_capacity_constrained_delivery`).
+    ``sharing`` picks how an overloaded link divides capacity:
+    ``"proportional"`` (every flow loses the same fraction, like tail drop)
+    or ``"max_min"`` (smaller flows are served in full first).
+
+    Note: :func:`evaluate` uses a different, older hop-by-hop model, in which
+    flows that reach a link at different hop numbers do not compete for its
+    capacity. It is left unchanged so existing results stay reproducible.
+    """
+    if sharing not in SHARING_MODES:
+        raise ValueError(f"sharing must be one of {SHARING_MODES}, got {sharing!r}")
+    path_flows: list[tuple[tuple[str, ...], float]] = []
+    owners: list[object] = []
+    expected_loads: dict[Edge, float] = defaultdict(float)
+    for label, (commodity, amount) in flows.items():
+        for path, probability in routes.get(commodity, []):
+            share = amount * probability
+            path_flows.append((path, share))
+            owners.append(label)
+            for edge in itertools.pairwise(path):
+                expected_loads[edge] += share
+
+    rates, actual_loads = _capacity_constrained_delivery(graph, path_flows, sharing)
+    delivered: dict[object, float] = dict.fromkeys(flows, 0.0)
+    for flow_id, label in enumerate(owners):
+        delivered[label] += rates[flow_id]
+    return FlowDelivery(
+        offered={label: amount for label, (_, amount) in flows.items()},
+        delivered=delivered,
+        expected_loads=dict(expected_loads),
+        actual_loads=actual_loads,
+    )
+
+
 def _statistics(
     graph: nx.DiGraph,
     demands: Mapping[Commodity, float],
@@ -1047,23 +1250,7 @@ def evaluate(
     demands = _load_demands(traffic_file, hosts_file)
     method = te_method.lower().lstrip("-")
     started = time.perf_counter()
-    if method == "ecmp":
-        routes = _ecmp_routes(graph, demands, budget)
-    elif method == "mcf":
-        routes = _mcf_routes(graph, demands)
-    elif method in ("semimcfraeke", "semimcfraekeft"):
-        hosts = {node for commodity in demands for node in commodity}
-        if method == "semimcfraeke":
-            scheme = _raecke_paths(graph, hosts, seed=seed)
-        else:
-            scheme = _oblivious_paths_ft(graph, hosts, seed=seed)
-        cand = _prune_scheme(scheme, budget)
-        routes = _semimcf_routes(graph, demands, cand)
-    else:
-        raise ValueError(
-            f"Unsupported in-process TE method {te_method!r}; "
-            f"supported methods are -ecmp, -mcf, -semimcfraeke, -semimcfraekeft"
-        )
+    routes = route_demands(graph, demands, te_method, budget, seed=seed)
     solver_time = time.perf_counter() - started
     expected, actual, throughput, loss, failure_loss = _statistics(
         graph, demands, routes

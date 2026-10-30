@@ -19,6 +19,7 @@ flowchart LR
         plans["attack_plans.py"]
         routing["routing.py"]
         traffic["traffic.py"]
+        topo["topology.py"]
         model["model.py"]
         subgraph recon["recon/"]
             oracle["oracle.py"]
@@ -49,6 +50,8 @@ flowchart LR
     recon --> plans & routing
     rtt --> grc
     routing --> te
+    traffic --> routing
+    oracle & rnd & damage --> topo
     plans --> model
 
     classDef existing stroke-dasharray: 5 5

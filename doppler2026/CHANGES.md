@@ -4,6 +4,83 @@ Every file created or changed for the Doppler 2026 experiment, inside or
 outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first.
 
+## 2026-10-30: Phase 1 (attack plans and damage)
+
+### Decisions
+
+- Recorded D1, D2, D4, D8 as accepted, and the new D11 (proportional loss)
+  and E1 (correct the capacity model only in the new path), in
+  `docs/decisions.md`. Added interpretations I1 to I6 where the paper's
+  wording leaves room; I3 (oracle tie-break) was revised during the phase.
+
+### Changes outside this folder
+
+- **Changed `src/onset/te/engine.py`** (PLAN §5 item 2).
+  - *Added `route_demands()`:* routes demands in memory with any TE method.
+    The routing dispatch inside `evaluate()` was moved into it unchanged;
+    `evaluate()` now calls it and behaves exactly as before.
+  - *Added `deliver_flows()` and `FlowDelivery`:* pushes labelled flows
+    through routed links and reports delivery per label. Why: damage under
+    D1 needs benign loss kept apart from attack loss between the same two
+    PoPs, which `evaluate()` merges and only writes to files.
+  - *Added a capacity-correct loss model for `deliver_flows()`*
+    (`_capacity_constrained_delivery`, `_link_rule`). Why: the older loop in
+    `evaluate()` lets a link carry more than its capacity when flows reach
+    it at different hop numbers (found while checking Phase 1 on ANS: an
+    attack that overloaded its target link to 114% caused zero benign loss).
+    The new model makes every link carry at most its capacity, with
+    proportional or max-min sharing (D11). `evaluate()` was not changed
+    (decision E1); the bug there is documented in `docs/decisions.md`.
+- **Changed `src/onset/te/__init__.py`:** exports the new functions.
+- **Created `tests/test_te_in_memory.py`:** 18 tests for the new functions,
+  including the hop-number case that exposes the old bug and a check on 10
+  random networks that no link ever carries more than its capacity.
+
+### New files in this folder
+
+- **`model.py`:** data types and settings (attack plan, routing, attack,
+  damage settings, damage report, relative damage). Every decision is a
+  setting here.
+- **`topology.py`:** loads Topology Zoo networks with a default link
+  capacity (I6); stable topology IDs shared with the optimizer.
+- **`routing.py`:** thin layer over the engine's in-memory functions, plus
+  per-link traffic shares used by the attackers.
+- **`traffic.py`:** benign gravity-model demand scaled to a chosen peak
+  utilization (I5).
+- **`attack_plans.py`:** plans with an equal budget split (Eq. 7–8); budgets
+  as a multiple of link capacity (D4).
+- **`recon/__init__.py`, `recon/oracle.py`, `recon/random_plan.py`:** the
+  oracle (I3) and no-knowledge attackers (§3.2).
+- **`damage.py`:** damage D(A, G) with four §3.4 measures, and the ratio
+  that is τ (Eq. 1) or η (Eq. 10), with D2 handling.
+- **`tests/helpers.py`, `tests/test_d26_attack_plans.py`,
+  `tests/test_d26_damage.py`, `tests/test_d26_phase1_ans.py`:** 16 tests,
+  including the Phase 1 checks on ANS.
+- **Docs updated:** `README.md` (what exists, worked example), `PLAN.md`
+  (status, layout, §5 item 2), `docs/paper_map.md` (now 13 rows
+  implemented), `docs/references.md` (inputs now in use; Topology Zoo origin
+  checked for 5 of 6 files), `docs/diagrams/modules.md` (adds `topology.py`).
+
+### Phase 1 checks
+
+On ANS, benign traffic at 50% peak utilization, ECMP, N_A = 10, 20 random
+plans per budget:
+
+| Budget R_A | Oracle benign loss | Random plans: mean | Random plans: worst |
+|---|---|---|---|
+| 0.5 × link capacity | 0.0000 | 0.0000 | 0.0000 |
+| 1 × link capacity | 0.0068 | 0.0000 | 0.0000 |
+| 2 × link capacity | 0.0258 | 0.0004 | 0.0077 |
+
+- The oracle beats every random plan at the same budget, and the oracle
+  plan measured against itself has ratio 1 (tests in
+  `tests/test_d26_phase1_ans.py`).
+- Losses are small as a share of all benign traffic because flooding one
+  link only hurts the traffic on that link. τ is a ratio of two such
+  numbers, so this cancels there.
+- Full run: `pytest tests doppler2026/tests` gives 200 passed; ruff clean;
+  mypy unchanged (the same 16 pre-existing errors in `open_doppler.py`).
+
 ## 2026-10-30: Moved the folder to the repository root
 
 - **Moved `scripts/doppler2026/` to `doppler2026/`.** Why: at `scripts/`,

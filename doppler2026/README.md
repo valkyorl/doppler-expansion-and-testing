@@ -5,8 +5,41 @@ This folder implements the experiment for the draft paper
 optical network so that link-flooding attack plans learned on earlier
 topologies stop working, while benign traffic is still carried safely.
 
-**Status:** Phase 0 (foundations). No experiment code yet. See
-`CHANGES.md` for what has been done.
+**Status:** Phase 1 done: attack plans, the oracle and random attackers,
+damage, and τ/η can be computed on any topology. See `CHANGES.md` for what
+has been done and `PLAN.md` §6 for what comes next.
+
+## What exists so far
+
+| Module | What it does | Paper |
+|---|---|---|
+| `model.py` | Data types and all experiment settings | §2.1, §3.3, §3.4 |
+| `topology.py` | Load a Topology Zoo network with link capacities | — |
+| `routing.py` | Route traffic in memory with the existing TE engine | §2.1 |
+| `traffic.py` | Benign gravity-model demand at a chosen load | §4.3 |
+| `attack_plans.py` | Turn chosen pairs into a plan with an equal budget split | Eq. 7–8 |
+| `recon/oracle.py` | Perfect-knowledge attacker | §3.2 |
+| `recon/random_plan.py` | No-knowledge attacker | §3.2 |
+| `damage.py` | Damage of a plan; τ and η against a fresh oracle plan | §2.4, Eq. 1, Eq. 10 |
+
+A minimal example, from the repository root:
+
+```python
+from doppler2026.damage import relative_damage
+from doppler2026.model import AttackConfig, DamageConfig, RoutingConfig
+from doppler2026.recon.oracle import oracle_plan
+from doppler2026.topology import DEFAULT_CAPACITY, load_topology
+from doppler2026.traffic import benign_demand
+
+routing = RoutingConfig()                       # ECMP
+topology = load_topology("ANS")
+benign = benign_demand(topology, target_utilization=0.5, routing=routing, seed=1)
+attack = AttackConfig(budget=2 * DEFAULT_CAPACITY, n_pairs=10)
+
+plan = oracle_plan(topology, attack, routing)   # learned on this topology
+result = relative_damage(plan, topology, benign, attack, routing, DamageConfig())
+print(result.ratio, result.plan_damage.benign_loss)   # 1.0, about 0.026
+```
 
 ## Where to read
 

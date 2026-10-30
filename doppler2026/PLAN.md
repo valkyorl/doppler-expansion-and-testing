@@ -6,7 +6,7 @@ and checking the experiment. Paper references use § and Eq. numbers. Audit
 references ("audit #n") point to items in
 `docs/knowledge/analysisResults/doppler-paper-vs-code.html`.
 
-Status: **Phase 0 complete (2026-10-30).** Next: Phase 1. See `CHANGES.md`.
+Status: **Phase 1 complete (2026-10-30).** Next: Phase 2. See `CHANGES.md`.
 
 ---
 
@@ -84,6 +84,7 @@ doppler2026/
     decisions.md              choices the paper leaves open (§8 below)
     paper_map.md              paper equation -> function index
   model.py              dataclasses: AttackPlan, Candidate, EpochRecord, configs
+  topology.py           loading topologies with capacities; stable topology IDs
   attack_plans.py       A = {(s_i, d_i, r_i)} (Eq. 7), budget split (Eq. 8)
   recon/
     oracle.py           oracle attacker (§3.2)
@@ -148,10 +149,13 @@ cannot work correctly without it. All are listed in `CHANGES.md` when made.
    - **Side effect:** results of the existing `doppler`, `onset`, `onset_v2`
      and `onset_v3` methods will change, because they were affected by the
      same bugs. Regression tests will pin the corrected behavior.
-2. **`src/onset/te/engine.py`: add a public in-memory function** that routes a
-   given graph and demand dict and returns per-commodity delivered traffic.
-   The damage metric needs benign loss separated from attack loss, and today
-   that is only available from files. `evaluate()` itself is not changed.
+2. **`src/onset/te/engine.py`: add public in-memory functions** (done in
+   Phase 1). `route_demands()` routes without files; `deliver_flows()` pushes
+   labelled flows (benign and attack separately) through the network so that
+   every link carries at most its capacity, with proportional or max-min
+   sharing (D11). `evaluate()` behaves exactly as before; its older loss
+   model has a known capacity bug that was deliberately left in place
+   (decision E1 in `docs/decisions.md`).
 3. **`src/onset/base_types.py` and `src/onset/open_doppler.py`: optional
    per-edge capacity.** An optional `edge_capacity` mapping on
    `OptimizationProblem`, used by the MILP's utilization rows when present
