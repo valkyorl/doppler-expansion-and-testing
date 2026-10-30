@@ -1,0 +1,544 @@
+<title>Doppler Paper–Code Audit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column; discrepancy rows are two-column paper/code comparisons that stack on phones. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --fg: #1b2230;
+  --muted: #5a6475;
+  --rule: #d9dee6;
+  --accent: #1f5c8a;
+  --accent-soft: #e4eef6;
+  --code-bg: #eef1f5;
+  --sev-core: #a3261f;
+  --sev-core-bg: #fbe9e7;
+  --sev-major: #9a5a00;
+  --sev-major-bg: #fdf1dc;
+  --sev-mod: #3d5a80;
+  --sev-mod-bg: #e7eef7;
+  --sev-minor: #55606e;
+  --sev-minor-bg: #edf0f3;
+  --ok: #2e6b3f;
+  --ok-bg: #e5f2e8;
+  --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161d; --surface: #1a2029; --fg: #e3e7ee; --muted: #9aa4b4; --rule: #2c3442;
+    --accent: #7fb3dd; --accent-soft: #1d2d3d; --code-bg: #222a35;
+    --sev-core: #f19a8f; --sev-core-bg: #3a1d1b;
+    --sev-major: #f0b75e; --sev-major-bg: #3a2b14;
+    --sev-mod: #9cb9de; --sev-mod-bg: #1f2b3b;
+    --sev-minor: #aab3bf; --sev-minor-bg: #262d37;
+    --ok: #8fcf9f; --ok-bg: #1b3022;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161d; --surface: #1a2029; --fg: #e3e7ee; --muted: #9aa4b4; --rule: #2c3442;
+  --accent: #7fb3dd; --accent-soft: #1d2d3d; --code-bg: #222a35;
+  --sev-core: #f19a8f; --sev-core-bg: #3a1d1b;
+  --sev-major: #f0b75e; --sev-major-bg: #3a2b14;
+  --sev-mod: #9cb9de; --sev-mod-bg: #1f2b3b;
+  --sev-minor: #aab3bf; --sev-minor-bg: #262d37;
+  --ok: #8fcf9f; --ok-bg: #1b3022;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+}
+.page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 72px;
+  display: grid;
+  gap: 48px;
+}
+.prose { max-width: 68ch; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); letter-spacing: -0.01em; }
+h2 { font-size: 1.6rem; }
+h3 { font-size: 1.15rem; font-family: var(--font-body); font-weight: 600; }
+p { margin: 0; }
+a { color: var(--accent); }
+code, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 3px; overflow-wrap: anywhere; }
+.eyebrow { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 600; }
+
+header { display: grid; gap: 16px; }
+.meta {
+  display: flex; flex-wrap: wrap; gap: 8px 24px;
+  font-size: 0.88rem; color: var(--muted);
+  border-top: 1px solid var(--rule); padding-top: 12px;
+}
+.meta b { color: var(--fg); font-weight: 500; }
+
+.verdict {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--sev-core);
+  padding: 20px 24px;
+  display: grid; gap: 12px;
+}
+.verdict p { max-width: 70ch; }
+.tally { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.sev {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+}
+.sev::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.sev.core { color: var(--sev-core); background: var(--sev-core-bg); }
+.sev.major { color: var(--sev-major); background: var(--sev-major-bg); }
+.sev.mod { color: var(--sev-mod); background: var(--sev-mod-bg); }
+.sev.minor { color: var(--sev-minor); background: var(--sev-minor-bg); }
+.sev.ok { color: var(--ok); background: var(--ok-bg); }
+
+section { display: grid; gap: 20px; }
+.section-head { display: grid; gap: 6px; }
+.section-head p { color: var(--muted); max-width: 68ch; }
+
+ol.pipeline { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 0; border-top: 1px solid var(--rule); }
+ol.pipeline li {
+  counter-increment: step;
+  display: grid; grid-template-columns: 2.4rem minmax(0, 1fr); gap: 12px;
+  padding: 14px 0; border-bottom: 1px solid var(--rule);
+}
+ol.pipeline li::before {
+  content: counter(step);
+  font-family: var(--font-display); font-size: 1.3rem; color: var(--accent); line-height: 1.3;
+}
+ol.pipeline .where { display: block; color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+
+.group { display: grid; gap: 0; }
+.group > h3 { padding-bottom: 10px; border-bottom: 2px solid var(--fg); }
+.item {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr);
+  gap: 4px 14px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.item .num { font-family: var(--font-mono); color: var(--muted); font-size: 0.9rem; padding-top: 3px; }
+.item .body { display: grid; gap: 10px; min-width: 0; }
+.item .title-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.item .title-row strong { font-size: 1.02rem; }
+.compare { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.compare > div { min-width: 0; display: grid; gap: 4px; align-content: start; }
+.compare .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 600; }
+.refs { font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); overflow-wrap: anywhere; }
+.note { font-size: 0.92rem; color: var(--muted); }
+
+.bugs { display: grid; gap: 12px; }
+.bug { background: var(--surface); border: 1px solid var(--rule); padding: 16px 20px; display: grid; gap: 8px; min-width: 0; }
+
+ul.matches { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+ul.matches li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: baseline; }
+
+pre {
+  margin: 0; background: var(--code-bg); padding: 14px 16px; overflow-x: auto;
+  font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.5; border-radius: 4px;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--rule); padding-top: 16px; }
+
+@media (max-width: 720px) {
+  .compare { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .item { grid-template-columns: minmax(0, 1fr); }
+  .item .num { padding-top: 0; }
+}
+</style>
+
+<div class="page">
+
+<header>
+  <span class="eyebrow">Implementation audit · Doppler moving-target defense</span>
+  <h1>Doppler: draft paper vs. codebase</h1>
+  <p class="prose">This page compares the Doppler defense as described in the draft paper with what the codebase implements. Every claim cites the paper section or equation and the source file and line, so each one can be checked independently.</p>
+  <div class="meta">
+    <span>Paper: <b>Doppler-security-26</b> (draft, Aug 2026)</span>
+    <span>Code: <b>main @ aed64a1</b></span>
+    <span>Audited: <b>27 Oct 2026</b></span>
+    <span>Paths are relative to the repository root</span>
+  </div>
+</header>
+
+<div class="verdict">
+  <span class="eyebrow">Bottom line</span>
+  <p>What the code calls “Doppler” is a traffic-driven MILP that changes the topology <strong>as little as possible</strong> while keeping link utilization under a cap. None of the paper’s security machinery is implemented: there is no attack-plan transferability τ, no history of past states, no reconnaissance-to-plan pipeline, and no random choice among safe topologies. The objective also runs opposite to both the paper’s security objective and the older Gurobi implementation.</p>
+  <div class="tally">
+    <span class="sev core">Core · 3</span>
+    <span class="sev major">Major · 7</span>
+    <span class="sev mod">Moderate · 6</span>
+    <span class="sev minor">Minor · 4</span>
+  </div>
+  <p class="note">Severity is about impact on the paper’s claims. Core means the code does not test what the paper says Doppler is. Minor means a modelling simplification.</p>
+</div>
+
+<section>
+  <div class="section-head">
+    <h2>How the code implements Doppler</h2>
+    <p>The active path, in call order, for one traffic-matrix step.</p>
+  </div>
+  <ol class="pipeline">
+    <li><div><strong>Dispatch.</strong> <code>exp-v2.py</code> builds a <code>Simulation</code> with <code>tp="Doppler"</code>. The name is matched case-insensitively to the <code>doppler</code> registry entry and run by <code>_run_milp_method</code>.<span class="where mono">scripts/Doppler/exp-v2.py · src/onset/method_registry.py:73-82 · src/onset/handlers.py:21-61</span></div></li>
+    <li><div><strong>Inputs.</strong> The current traffic-matrix row, the fiber graph, the current logical graph and per-node transponder counts go to <code>build_optimization_problem</code>.<span class="where mono">src/onset/simulator.py:356-368, 617-631 · src/onset/preprocessing.py:632</span></div></li>
+    <li><div><strong>Candidate links</strong> come from graph structure only. <code>max</code> is every node pair exactly two hops apart. <code>conservative</code> closes triangles around the top 10% of links by betweenness.<span class="where mono">src/onset/preprocessing.py:168-248</span></div></li>
+    <li><div><strong>Tunnels.</strong> Each demand may only use edges on short precomputed paths over the fiber graph plus candidates.<span class="where mono">src/onset/preprocessing.py:283-418</span></div></li>
+    <li><div><strong>MILP.</strong> Binary <code>x_e</code> per link, a transponder degree limit, flow conservation, <code>f ≤ x</code> activation, per-edge load ≤ MLU ≤ min(1, threshold) and root-flow connectivity. The objective is <strong>minimize 2·(links added + dropped) + MLU</strong>.<span class="where mono">src/onset/open_doppler.py:43-302 (objective 231-245)</span></div></li>
+    <li><div><strong>Enumeration.</strong> Repeated solves, each adding a no-good cut that forbids the previous answer, until <code>top_k</code>, infeasibility or the time budget.<span class="where mono">src/onset/open_doppler.py:616-874</span></div></li>
+    <li><div><strong>Choice and evaluation.</strong> The lowest-MLU solution (then fewest changes) is applied by dropping, then adding, circuits. Traffic is then routed with ECMP, MCF or SMORE.<span class="where mono">src/onset/base_types.py:366-377 · src/onset/simulator.py:569-578</span></div></li>
+  </ol>
+</section>
+
+<section>
+  <div class="section-head">
+    <h2>Discrepancies</h2>
+    <p>Twenty differences, grouped by the part of the paper they affect.</p>
+  </div>
+
+  <div class="group">
+    <h3>A. The core security objective</h3>
+
+    <div class="item">
+      <span class="num">1</span>
+      <div class="body">
+        <div class="title-row"><strong>The objective is inverted</strong><span class="sev core">Core</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>Minimize T(G′), the worst-case transferability of recent attack plans. Even the “original motivation” maximizes structural difference, min |Eₜ ∩ E′|.</p><span class="refs">§4.8 Eq. 18, 21–22 · §4.11 Eq. 25</span></div>
+          <div><span class="label">Code</span><p>Minimizes changes. Each change costs 2 and MLU is capped at 1, so “change nothing” wins whenever it is feasible.</p><span class="refs">src/onset/open_doppler.py:236-245</span></div>
+        </div>
+        <p class="note">The legacy Gurobi code matched Eq. 18 (<code>graphSimilarity + maxLinkUtil</code>, <span class="mono">src/onset/gurobi_optimization.py:955-970, 1087</span>; <span class="mono">src/onset/gurobi_doppler.py:625-628</span>). The inversion arrived in commit <code>21d34ad</code>, which describes it as a “corrected MILP with 2*change+MLU objective”.</p>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">2</span>
+      <div class="body">
+        <div class="title-row"><strong>Transferability τ, T(G′) and τ_max do not exist</strong><span class="sev core">Core</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>τ(Aᵢ, Gⱼ) = D(Aᵢ, Gⱼ) / D(A*ⱼ, Gⱼ) filters candidate topologies.</p><span class="refs">§2.4 Eq. 1 · §4.8 Eq. 21–22</span></div>
+          <div><span class="label">Code</span><p>A search for transferability, attack-plan or history terms across <code>src/</code> and <code>scripts/</code> finds nothing. There is also no fresh plan A*ⱼ to divide by.</p><span class="refs">src/ · scripts/</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">3</span>
+      <div class="body">
+        <div class="title-row"><strong>No history of past topologies or attack plans</strong><span class="sev core">Core</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>The controller receives a history of attack plans for recent network states, Gₜ₋₁ … Gₜ₋ₕ.</p><span class="refs">§4.3 input 5 · §4.8 Eq. 19–20</span></div>
+          <div><span class="label">Code</span><p>The optimizer sees only the current graph and the current traffic matrix.</p><span class="refs">src/onset/simulator.py:596-640</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">4</span>
+      <div class="body">
+        <div class="title-row"><strong>No randomized selection, no attack-distinctness check</strong><span class="sev major">Major</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>Randomly select from an acceptable pool of safe, attack-distinct configurations.</p><span class="refs">§4.2 G4 · §4.9 Eq. 23–24 · §4.11</span></div>
+          <div><span class="label">Code</span><p>Fully deterministic: lowest MLU, then fewest changes, then objective, then a hash ID.</p><span class="refs">src/onset/base_types.py:366-377</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">5</span>
+      <div class="body">
+        <div class="title-row"><strong>The candidate pool collapses to one topology under MCF</strong><span class="sev major">Major</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>Enumerate up to K candidate configurations.</p><span class="refs">§4.11 Eq. 31</span></div>
+          <div><span class="label">Code</span><p><code>top_k</code> is forced to 1 when routing is <code>-mcf</code>, and the latest campaign uses MCF.</p><span class="refs">src/onset/handlers.py:26 · scripts/Doppler/exp-v2.py:203</span></div>
+        </div>
+        <p class="note"><code>top_k</code> is also overloaded. Under <code>dynamic_doppler</code> allocation it sets the percentage of nodes that get spare transponders (<span class="mono">src/onset/alpwolf.py:266-290</span>, enabled at <span class="mono">scripts/Doppler/exp-v2.py:82</span>). In that campaign, the <code>top_k</code> sweep only changes hardware placement.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>B. Reconnaissance and the attacker</h3>
+
+    <div class="item">
+      <span class="num">6</span>
+      <div class="body">
+        <div class="title-row"><strong>No RTT / Ricci-curvature reconnaissance</strong><span class="sev major">Major</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>Minimum-RTT graphs over an ε sweep, Ollivier–Ricci curvature ranking, evaluated with precision, recall, F1 and P@k.</p><span class="refs">§3.1.1 Eq. 2–4 · §3.4 Eq. 9</span></div>
+          <div><span class="label">Code</span><p>Only loads a precomputed reconstruction and compares it with a “ground truth” JSON using per-edge flow Jaccard and betweenness. No ε sweep.</p><span class="refs">src/onset/similarity.py:18-58, 255 · src/onset/similarity_bars.py · data/graphs/json/regional/</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">7</span>
+      <div class="body">
+        <div class="title-row"><strong>No real traceroute attacker</strong><span class="sev major">Major</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>An observed IP-layer graph from traceroute and alias resolution, with links ranked by betweenness.</p><span class="refs">§3.1.2 Eq. 5–6</span></div>
+          <div><span class="label">Code</span><p>The “traceroute reconstruction” script simulates tracing flows over all shortest paths of the ground-truth graph.</p><span class="refs">scripts/traceroute-reconstruction-campus.sh · src/onset/utilities/flow_distribution.py:20-37</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">8</span>
+      <div class="body">
+        <div class="title-row"><strong>Ground-truth provenance needs checking</strong><span class="sev mod">Moderate</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>Router-proxy data is an observation source, not ground truth, unless it has been independently validated.</p><span class="refs">§3.4</span></div>
+          <div><span class="label">Code</span><p>The repository builds topology from GRNOC router-proxy output. Confirm whether the regional “ground truth” came from there.</p><span class="refs">data/NOC/interfaces_to_graph.py · data/NOC/sox.edu.iu.grnoc.routerproxy/</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">9</span>
+      <div class="body">
+        <div class="title-row"><strong>Only an oracle-style attacker; no no-knowledge baseline</strong><span class="sev mod">Moderate</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>Oracle and random-pair (no-knowledge) baselines alongside the measurement-driven attackers.</p><span class="refs">§3.2 · §3.3 Eq. 8</span></div>
+          <div><span class="label">Code</span><p>The attacker targets the most-used edge in the real routing’s path file and splits its budget evenly across flows (roughly Eq. 8). There is no random-pair baseline.</p><span class="refs">src/onset/attacker.py:150-163, 389-517</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">10</span>
+      <div class="body">
+        <div class="title-row"><strong>The latest Doppler campaign has no attack traffic</strong><span class="sev major">Major</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>Measure how well stale attack plans transfer across Doppler-generated topologies.</p><span class="refs">§1 evaluation dimensions · §4.2 G1</span></div>
+          <div><span class="label">Code</span><p>The campaign runs <code>traffic = ["background"]</code> for one iteration, which is a single reconfiguration on benign traffic.</p><span class="refs">scripts/Doppler/exp-v2.py:201 · scripts/Doppler/exp-v2.py:77</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>C. Operational and optical constraints</h3>
+
+    <div class="item">
+      <span class="num">11</span>
+      <div class="body">
+        <div class="title-row"><strong>Physical feasibility is not modelled</strong><span class="sev mod">Moderate</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>E* includes a link only if fiber, ROADM, transponders, optical reach and spectrum allow it.</p><span class="refs">§4.4 · §4.2 G3</span></div>
+          <div><span class="label">Code</span><p><code>max</code> candidates are any 2-hop pairs with <code>max_distance=inf</code>. <code>add_circuit</code> only checks for a free transponder.</p><span class="refs">src/onset/preprocessing.py:171, 207 · src/onset/alpwolf.py:453-534</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">12</span>
+      <div class="body">
+        <div class="title-row"><strong>Candidate sets differ from the paper’s</strong><span class="sev mod">Moderate</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>“Local” reconfigurations near important regions of the current network, and an “expanded” set covering a larger fraction of all feasible links.</p><span class="refs">§4.10</span></div>
+          <div><span class="label">Code</span><p><code>conservative</code> is roughly “local”. <code>max</code> is 2-hop pairs only. Both are computed on the fiber graph, not the current logical topology.</p><span class="refs">src/onset/preprocessing.py:194-246, 577</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">13</span>
+      <div class="body">
+        <div class="title-row"><strong>No path-stretch constraint</strong><span class="sev mod">Moderate</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>ℓ(P′)/ℓ(P⁰) ≤ S_max for every demand, using latency or an operator cost.</p><span class="refs">§4.7 Eq. 17</span></div>
+          <div><span class="label">Code</span><p>The only stand-in is a tunnel cutoff of <code>max(shortest, 4)</code> nodes. That bounds hop count, not latency.</p><span class="refs">src/onset/preprocessing.py:389</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">14</span>
+      <div class="body">
+        <div class="title-row"><strong>Connectivity is weaker than described</strong><span class="sev minor">Minor</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>Operators may require multiple independent paths between selected pairs or regions.</p><span class="refs">§4.7 Connectivity and redundancy</span></div>
+          <div><span class="label">Code</span><p>A root-flow constraint only requires the topology to be connected.</p><span class="refs">src/onset/open_doppler.py:180-216</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">15</span>
+      <div class="body">
+        <div class="title-row"><strong>Uniform capacities</strong><span class="sev mod">Moderate</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>Per-link realizable capacity Cₑ, with multi-wavelength aggregation and heterogeneous transponder rates.</p><span class="refs">§4.5 · §4.6 Eq. 15</span></div>
+          <div><span class="label">Code</span><p>Every link is 100 Gbps and <code>x_e</code> is binary. Capacities in topology files are ignored.</p><span class="refs">src/onset/preprocessing.py:644 · src/onset/open_doppler.py:250</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">16</span>
+      <div class="body">
+        <div class="title-row"><strong>Demand is the full observed matrix, attack included</strong><span class="sev major">Major</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>Feasibility is checked against an estimated (benign) demand matrix Dₜ.</p><span class="refs">§4.3 input 4 · §4.6</span></div>
+          <div><span class="label">Code</span><p>The MILP sees the actual traffic row, including any attack traffic, so the defender reacts to the attack it is meant to pre-empt.</p><span class="refs">src/onset/simulator.py:356-368, 620</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">17</span>
+      <div class="body">
+        <div class="title-row"><strong>Routing is restricted to tunnels</strong><span class="sev minor">Minor</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>Flow conservation and capacity are written over all of E*.</p><span class="refs">§4.6 Eq. 12–15</span></div>
+          <div><span class="label">Code</span><p>Flow may only use edges on each demand’s precomputed tunnels.</p><span class="refs">src/onset/open_doppler.py:95-99</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="group">
+    <h3>D. Transitions and timing</h3>
+
+    <div class="item">
+      <span class="num">18</span>
+      <div class="body">
+        <div class="title-row"><strong>No make-before-break transition</strong><span class="sev mod">Moderate</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>Add new circuits, verify, let routing converge, then remove old links. Measure convergence and packet loss.</p><span class="refs">§4.13 Eq. 32–33</span></div>
+          <div><span class="label">Code</span><p><code>apply_solution</code> drops circuits before adding them, all at once. Transients are not simulated.</p><span class="refs">src/onset/simulator.py:574-577</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">19</span>
+      <div class="body">
+        <div class="title-row"><strong>Reconfiguration time is a placeholder</strong><span class="sev minor">Minor</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>Separately measure circuit reconfiguration, link establishment and routing convergence.</p><span class="refs">§4.13 · §4.14</span></div>
+          <div><span class="label">Code</span><p>Fixed at 1.0 s only when the method string is exactly lowercase <code>"doppler"</code>. Otherwise a distance-based estimate. <code>exp-v2.py</code> passes <code>"Doppler"</code>.</p><span class="refs">src/onset/simulator.py:425-433 · src/onset/utilities/reconfiguration.py:22-39</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <span class="num">20</span>
+      <div class="body">
+        <div class="title-row"><strong>No periodic interval T_R</strong><span class="sev minor">Minor</span></div>
+        <div class="compare">
+          <div><span class="label">Paper</span><p>An operator-set interval between transitions, compared with the attacker’s reconnaissance cost.</p><span class="refs">§4.14</span></div>
+          <div><span class="label">Code</span><p>Re-optimizes once per traffic-matrix row. The time budget does exist (<code>optimizer_time_limit_minutes</code>, close to T_opt), but the baseline LP runs inside it even though the docstring says outside.</p><span class="refs">src/onset/open_doppler.py:629, 636-640</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="section-head">
+    <h2>Bugs that affect any results</h2>
+    <p>Independent of the paper, these change what the current code produces.</p>
+  </div>
+  <div class="bugs">
+    <div class="bug">
+      <div class="title-row"><strong>Demands are silently dropped depending on direction</strong> <span class="sev core">Core</span></div>
+      <p>Tunnels are keyed by string-sorted node pairs, but demands cover every ordered pair. Any demand <code>(s,t)</code> with <code>s &gt; t</code> gets no flow variables and disappears from the MILP. On ANS with <code>ANS_coremelt_links-2_volume-2.00e+11.txt</code>, on the row the simulator reads first (the last row), 15 of 24 nonzero demands are dropped, about 70% of volume.</p>
+      <span class="refs">src/onset/preprocessing.py:145-152, 567 · src/onset/open_doppler.py:74, 96, 131</span>
+    </div>
+    <div class="bug">
+      <div class="title-row"><strong>The tunnel cache ignores the candidate set</strong> <span class="sev major">Major</span></div>
+      <p>The cache key is only the network name and caching is always on. A <code>conservative</code> run poisons a later <code>max</code> run, so results in a mixed grid depend on run order.</p>
+      <span class="refs">src/onset/preprocessing.py:421-442 · src/onset/simulator.py:628</span>
+    </div>
+    <div class="bug">
+      <div class="title-row"><strong>The latest driver cannot run an experiment as written</strong> <span class="sev major">Major</span></div>
+      <p><code>main()</code> always prints commands and calls <code>exit()</code>. Each printed command has 10 fields, but the unpack expects 9. <code>Gigapop</code> and <code>CEN</code> are not in <code>data/</code>, and the hosts dict has the key <code>"Gigalpop"</code>.</p>
+      <span class="refs">scripts/Doppler/exp-v2.py:211-216 · scripts/Doppler/experiment_params.py:68</span>
+    </div>
+    <div class="bug">
+      <div class="title-row"><strong>No-good cuts pile up</strong> <span class="sev minor">Minor</span></div>
+      <p>Every earlier cut is re-added on every loop pass, so the model grows quadratically with the number of solutions.</p>
+      <span class="refs">src/onset/open_doppler.py:666-678</span>
+    </div>
+    <div class="bug">
+      <div class="title-row"><strong><code>max</code> returns each candidate twice</strong> <span class="sev minor">Minor</span></div>
+      <p>On ANS that is 78 entries for 39 unique links, because pairs come from <code>permutations</code>. The MILP de-duplicates them later, so this is harmless.</p>
+      <span class="refs">src/onset/preprocessing.py:195, 216</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="section-head">
+    <h2>What lines up</h2>
+  </div>
+  <ul class="matches">
+    <li><span class="sev ok">Match</span><span>Transponder degree limit, Σ x_e ≤ txp(v). <span class="refs">§4.5 Eq. 11 · src/onset/open_doppler.py:116-124</span></span></li>
+    <li><span class="sev ok">Match</span><span>Maximum link utilization cap (the campaign uses 0.99999). <span class="refs">§4.7 Eq. 16 · src/onset/open_doppler.py:251-252</span></span></li>
+    <li><span class="sev ok">Partial</span><span>Binary link variables over a feasible-link set, though “feasible” is defined differently (item 11). <span class="refs">§4.4 · src/onset/preprocessing.py:604-607</span></span></li>
+    <li><span class="sev ok">Match</span><span>A solver time budget, close to T_opt. <span class="refs">§4.12 · src/onset/simulator.py:627</span></span></li>
+    <li><span class="sev ok">Partial</span><span>A pool of solutions through no-good cuts, though it is not used for random selection. <span class="refs">§4.11 · src/onset/open_doppler.py:453-475</span></span></li>
+    <li><span class="sev ok">Match</span><span>The coremelt attacker splits its budget evenly across selected flows. <span class="refs">§3.3 Eq. 8 · src/onset/attacker.py:389-452</span></span></li>
+  </ul>
+</section>
+
+<section>
+  <div class="section-head">
+    <h2>How to verify</h2>
+    <p>Two checks reproduce the most consequential findings.</p>
+  </div>
+  <div class="prose" style="display:grid; gap:8px;">
+    <h3>The objective change</h3>
+    <p>Compare the legacy and current objectives, then read the commit that introduced the current one.</p>
+  </div>
+  <pre><code>sed -n 955,970p src/onset/gurobi_optimization.py; sed -n 1087p src/onset/gurobi_optimization.py
+sed -n 231,245p src/onset/open_doppler.py
+git show 21d34ad --stat</code></pre>
+  <div class="prose" style="display:grid; gap:8px;">
+    <h3>Dropped demands</h3>
+    <p>Run from the repository root. It builds the tunnels without touching the on-disk cache and counts demands with no tunnel.</p>
+  </div>
+  <pre><code>import sys, tempfile; sys.path.insert(0, "src")
+from itertools import permutations
+import networkx as nx
+from onset.preprocessing import (compute_candidate_links, build_super_graph,
+    find_original_tunnels, compute_tunnels, load_demand_from_file)
+
+G = nx.relabel_nodes(nx.Graph(nx.read_gml("data/graphs/gml/ANS.gml", label="id")), str)
+pairs = {tuple(sorted(p)) for p in permutations(G.nodes, 2)}
+ol, od = find_original_tunnels(G, pairs)
+S = build_super_graph(G, compute_candidate_links(G, "conservative"))
+_, _, tunnels = compute_tunnels(S, pairs, ol, od, parallel=False, use_cache=False)
+
+rows = open("data/traffic/ANS_coremelt_links-2_volume-2.00e+11.txt").read().split("\n")
+with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
+    f.write([r for r in rows if r.strip()][-1])
+dem = {k: v for k, v in load_demand_from_file(f.name, nodes=tuple(G.nodes)).items() if v > 0}
+missing = {k: v for k, v in dem.items() if k not in tunnels}
+print(len(missing), "of", len(dem), "demands dropped,",
+      round(sum(missing.values()) / sum(dem.values()), 3), "of volume")</code></pre>
+</section>
+
+<footer>
+  Repository copy: <span class="mono">docs/knowledge/analysisResults/doppler-paper-vs-code.html</span>. A companion description of the code path is in <span class="mono">docs/knowledge/doppler-algorithm.md</span>.
+</footer>
+
+</div>
