@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import pickle
 from collections import defaultdict
+from hashlib import sha1
 from itertools import permutations
 from math import floor, log10
 from multiprocessing import Manager, Pool
@@ -526,6 +527,20 @@ def load_original_paths(
     return tunnel_list, tunnel_dict
 
 
+def _tunnel_cache_key(network_name: str, super_graph: nx.Graph, parallel: bool) -> str:
+    """Name the tunnel cache after everything the tunnels depend on.
+
+    Tunnels are computed on the super-graph (fiber links plus candidate
+    links), and the serial and parallel workers use different path limits.
+    Keying the cache on the network name alone let a run with one candidate
+    set reuse tunnels computed for another.
+    """
+    edges = sorted(tuple(sorted((str(u), str(v)))) for u, v in super_graph.edges)
+    digest = sha1(repr(edges).encode("utf-8")).hexdigest()[:12]
+    mode = "par" if parallel else "ser"
+    return f"{network_name}_{digest}_{mode}"
+
+
 # ---------------------------------------------------------------------------
 # Top-level preprocessing convenience
 # ---------------------------------------------------------------------------
@@ -595,7 +610,9 @@ def preprocess_doppler(
             orig_tunnel_list,
             orig_tunnel_dict,
             parallel=parallel_execution,
-            network_name=network_name,
+            network_name=_tunnel_cache_key(
+                network_name, super_graph, parallel_execution
+            ),
             use_cache=use_cache,
         )
     else:
@@ -721,7 +738,14 @@ def build_optimization_problem(
             for i in range(len(path) - 1):
                 directed_set.add((path[i], path[i + 1]))
         if directed_set:
+            # Tunnels are stored once per unordered pair, keyed (s, t) with
+            # s < t as strings, and already include each path in both
+            # directions. Demands cover every ordered pair, so register the
+            # same edge set for (t, s) too; otherwise every demand whose
+            # source sorts after its target gets no flow variables and
+            # silently disappears from the MILP.
             tunnel_edge_sets[(s, t)] = frozenset(directed_set)
+            tunnel_edge_sets[(t, s)] = tunnel_edge_sets[(s, t)]
 
     # Build path-based data for onset_v2 / onset formulations
     path_data = None
