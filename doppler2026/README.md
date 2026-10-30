@@ -28,7 +28,7 @@ environment active.
 Run this experiment's tests:
 
 ```bash
-pytest scripts/doppler2026/tests --no-cov
+pytest doppler2026/tests --no-cov
 ```
 
 Lint and format-check this folder. The repository's ruff config only covers
@@ -37,11 +37,11 @@ rules are passed on the command line:
 
 ```bash
 ruff check --isolated --target-version py313 --line-length 88 \
-  --select E,F,W,I,N,UP,B,C4,SIM,RUF --ignore E501 scripts/doppler2026
-ruff format --isolated --check scripts/doppler2026
+  --select E,F,W,I,N,UP,B,C4,SIM,RUF --ignore E501 doppler2026
+ruff format --isolated --check doppler2026
 ```
 
-The experiment runner (`python -m scripts.doppler2026.run`) arrives in
+The experiment runner (`python -m doppler2026.run`) arrives in
 Phase 4.
 
 ## Layout

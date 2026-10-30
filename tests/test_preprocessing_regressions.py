@@ -5,7 +5,7 @@
 2. The tunnel cache was keyed only by network name, so a run with one
    candidate set reused tunnels computed for another.
 
-See scripts/doppler2026/CHANGES.md for the full description.
+See doppler2026/CHANGES.md for the full description.
 """
 
 import os

@@ -8,7 +8,7 @@ entries are not used in code until confirmed.
 
 | # | Decision | Decided | Why |
 |---|---|---|---|
-| P1 | All experiment-specific files live in `scripts/doppler2026/`, run as `python -m scripts.doppler2026.<module>` | User, 2026-10-30 | Keeps the experiment separate from older campaigns; `scripts` resolves as a namespace package, so no `sys.path` edits are needed |
+| P1 | All experiment-specific files, including docs and tests, live in `doppler2026/` at the repository root, run as `python -m doppler2026.<module>` from the root | User, 2026-10-30; moved from `scripts/doppler2026/` on 2026-10-30 | Keeps the experiment, its documentation, and its tests together and separate from older campaigns. At `scripts/` the docs and tests would have sat among campaign scripts |
 | P2 | Fix the preprocessing demand-direction and tunnel-cache bugs in shared code rather than working around them | User, 2026-10-30 | They are bugs; the experiment reuses this code. Side effect: results of existing `doppler`/`onset*` methods change |
 | P3 | Compute Ollivier–Ricci curvature with the GraphRicciCurvature library | User, 2026-10-30 | Matches the tooling prior work likely used. Install on Python 3.13 is checked first in Phase 2 |
 | P4 | Reconnaissance data: only the precomputed regional Ricci reconstruction exists; start with simulated measurements | User, 2026-10-30 | No raw RTT or traceroute data is in hand |

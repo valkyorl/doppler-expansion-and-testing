@@ -4,6 +4,27 @@ Every file created or changed for the Doppler 2026 experiment, inside or
 outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first.
 
+## 2026-10-30: Moved the folder to the repository root
+
+- **Moved `scripts/doppler2026/` to `doppler2026/`.** Why: at `scripts/`,
+  the experiment's documentation and tests would sit among campaign scripts;
+  at the root they stay together as one self-contained project folder
+  (decision P1, updated).
+- **Updated every path reference** from `scripts/doppler2026` to
+  `doppler2026` and from `scripts.doppler2026` to `doppler2026` in:
+  `CLAUDE.md`, `tests/test_preprocessing_regressions.py` (docstring), and
+  this folder's `__init__.py`, `README.md`, `PLAN.md`, `CHANGES.md` (earlier
+  entries too, so their paths still resolve), `docs/decisions.md`, and
+  `docs/diagrams/modules.md` and `data-flow.md`.
+- **Changed `tests/conftest.py`:** the repository root is now two folders up
+  (`parents[2]`), not three.
+- **Reworded `PLAN.md` §3:** the experiment is now a regular top-level
+  package run with `python -m doppler2026.<module>` from the repo root,
+  instead of relying on `scripts` being a namespace package.
+- **Checks:** `pytest doppler2026/tests` passes (also when started from
+  another directory); the main suite plus these tests pass together (166);
+  ruff clean.
+
 ## 2026-10-30: Phase 0 (foundations)
 
 ### Changes outside this folder
@@ -44,7 +65,7 @@ addresses. Newest entries first.
 
 ### New files in this folder
 
-- **`__init__.py`**: makes the folder importable as `scripts.doppler2026`
+- **`__init__.py`**: makes the folder importable as `doppler2026`
   and explains what the package is.
 - **`README.md`**: where to start reading, how to run tests and lint.
 - **`docs/decisions.md`**: decisions already made (P1–P7) and the open
@@ -55,14 +76,14 @@ addresses. Newest entries first.
   Mermaid diagrams of one Doppler epoch (a candidate for the paper's Fig. 1),
   module dependencies, and the path from inputs to figures.
 - **`tests/conftest.py`**: puts the repository root on `sys.path` so tests
-  can import `scripts.doppler2026` without changing the repo-wide pytest
+  can import `doppler2026` without changing the repo-wide pytest
   config.
 - **`tests/test_d26_package.py`**: smoke test that the package imports.
 
 ### Checks
 
 - Full suite: 165 passed (161 before, plus 4 regression tests).
-- `pytest scripts/doppler2026/tests`: 1 passed.
+- `pytest doppler2026/tests`: 1 passed.
 - ruff (project rules) clean on changed and new files.
 - mypy reports 16 errors in `src/onset/open_doppler.py`. They exist without
   these changes too (numpy 2.5 type stubs) and that file was not touched, so
@@ -94,11 +115,11 @@ addresses. Newest entries first.
   experiment so they persist across Claude Code sessions: the paper is the
   specification, change only what is needed outside this folder, explain and
   log every change, document every module.
-- **Created `scripts/doppler2026/PLAN.md`.** The implementation plan: control
+- **Created `doppler2026/PLAN.md`.** The implementation plan: control
   loop design, folder layout, paper-to-component map, the four changes needed
   outside this folder, phases with checks, experiments, open decisions, and
   known gaps.
-- **Created `scripts/doppler2026/CHANGES.md`** (this file). Gives one place to
+- **Created `doppler2026/CHANGES.md`** (this file). Gives one place to
   see what has been changed and why.
 
 No code has been changed yet.

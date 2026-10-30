@@ -12,7 +12,7 @@ flowchart LR
         cfg["Experiment config<br/>configs/*.json"]
     end
 
-    runner["python -m scripts.doppler2026.run"]
+    runner["python -m doppler2026.run"]
 
     subgraph out["data/results/doppler2026/&lt;experiment&gt;/&lt;run_id&gt;/"]
         c["config.json<br/>(config, seed, git commit, versions)"]

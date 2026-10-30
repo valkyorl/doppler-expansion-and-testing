@@ -1,12 +1,12 @@
 # Module map
 
-How the planned modules in `scripts/doppler2026/` depend on each other and on
+How the planned modules in `doppler2026/` depend on each other and on
 existing code in `src/onset/`. An arrow means "uses". Dashed boxes are
 existing shared code.
 
 ```mermaid
 flowchart LR
-    subgraph d26["scripts/doppler2026/"]
+    subgraph d26["doppler2026/"]
         run["run.py"]
         controller["controller.py"]
         transition["transition.py"]

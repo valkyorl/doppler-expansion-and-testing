@@ -66,12 +66,15 @@ Two points carry most of the design:
 
 ## 3. Folder layout
 
-Everything specific to this experiment lives here. It runs from the repo root
-as `python -m scripts.doppler2026.run <config>`. `scripts` works as an
-implicit namespace package, so no `sys.path` edits are needed.
+Everything specific to this experiment, including its documentation and
+tests, lives in `doppler2026/` at the repository root. It is a regular Python
+package and runs from the repo root as `python -m doppler2026.run <config>`;
+Python puts the current directory on the import path for `-m`, so no
+`sys.path` edits are needed. It is not installed with the `onset` package,
+so it must be run from the repo root.
 
 ```
-scripts/doppler2026/
+doppler2026/
   PLAN.md               this file
   CHANGES.md            log of every file created or changed, and why
   README.md             how to install and run (written in Phase 0)
@@ -102,7 +105,7 @@ scripts/doppler2026/
   experiments/          one script per paper evaluation (§7 below)
   configs/              JSON configs per network/experiment
   tests/                unit + regression tests (with a conftest.py that
-                        lets pytest import scripts.doppler2026)
+                        lets pytest import doppler2026)
 ```
 
 ## 4. Components, mapped to the paper
@@ -130,7 +133,7 @@ audit item it closes.
 | Transition | §4.13, Eq. 32–33 | Order adds before drops when transponders allow; otherwise label the transition break-before-make. Evaluate the network after each intermediate step (MLU, benign loss) | AlpWolf circuit model | #18, #19 |
 | Control loop | §4.14 | Epochs of length T_R. The attacker needs L epochs to finish recon, so the attack at epoch t uses the plan learned at t − L. History of the last h (G_i, A_i). Logs solver time vs T_opt | all of the above | #20, #10 |
 
-## 5. Changes outside `scripts/doppler2026/`
+## 5. Changes outside `doppler2026/`
 
 These are the only changes planned elsewhere, each because the experiment
 cannot work correctly without it. All are listed in `CHANGES.md` when made.
@@ -281,10 +284,10 @@ grouping.
 (renders on GitHub and in most Markdown viewers):
 
 - The Doppler control loop (the paper's Fig. 1 placeholder).
-- The module dependency map of `scripts/doppler2026/`.
+- The module dependency map of `doppler2026/`.
 - Data flow from configs to result files to figures.
 
-**Added as phases finish: paper figures** in `scripts/doppler2026/figures/`.
+**Added as phases finish: paper figures** in `doppler2026/figures/`.
 One script per figure or table, reading only result files and writing to
 `figures/out/` as PDF (for the paper) and PNG (for review).
 

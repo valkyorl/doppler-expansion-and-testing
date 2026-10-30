@@ -8,5 +8,5 @@ import importlib
 
 
 def test_package_imports_from_repo_root():
-    package = importlib.import_module("scripts.doppler2026")
+    package = importlib.import_module("doppler2026")
     assert "Doppler 2026" in package.__doc__
