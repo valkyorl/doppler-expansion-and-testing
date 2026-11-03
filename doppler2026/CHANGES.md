@@ -4,6 +4,36 @@ Every file created or changed for the Doppler 2026 experiment, inside or
 outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first.
 
+## 2026-11-03: Gurobi licence kept out of git
+
+- `.gitignore` (repository root, outside this folder): added `gurobi.lic` and
+  `*.lic`. The user's Gurobi licence is a Web License Service file, which
+  contains an access secret, and the repository is public. A copy had been
+  saved in the repository root (untracked, never committed); it was moved to
+  `~/gurobi.lic`, where Gurobi finds it. Requested by the user. Gurobi itself
+  is not used by the experiment yet (D25).
+
+## 2026-11-03: Phase 3 decisions accepted
+
+- `docs/decisions.md`: the user accepted D3, D5, D6, D9, D16–D20 and D23–D25 as
+  recommended, D21 (a) 2× median link capacity, D7 (c) traceroute, and D22 (b)
+  randomized objective weights. All moved to "Accepted parameter choices";
+  their config setting names are filled in when Phase 3 builds them. Only D10
+  (Phase 4) remains proposed.
+- `PLAN.md` §8: D7 row and a status note updated.
+
+## 2026-11-03: Phase 3 open questions recorded
+
+- `docs/decisions.md`: added proposals D16–D25 (fiber graph and E*, new-link
+  capacity, transponders, stretch, connectivity, security-filter budget,
+  candidate enumeration, local candidate set, selection objective, solver and
+  T_opt), found by reading paper §4.4–4.12 against the code. None is used in
+  code until confirmed.
+- Revised D16, D17, D18, D22, D23, D25 after reading the old Doppler
+  (`scripts/Doppler/`, `simulator.py`, `alpwolf.py`, `preprocessing.py`,
+  `open_doppler.py`, `gurobi_doppler.py`) and `network_model.py`: defaults now
+  follow the old code where it settles a question, and say where it does not.
+
 ## 2026-11-03: Interpretation I13, no simulated attackers on the regional network
 
 - `docs/decisions.md`: added I13, confirmed by the user. On the regional

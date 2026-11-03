@@ -243,6 +243,9 @@ worth including.
 These go into `docs/decisions.md` with a proposed default, and get confirmed
 with you before the phase that needs them.
 
+Status 2026-11-03: every choice needed by Phase 3 is accepted, including the
+later additions D16–D25 (see `docs/decisions.md`). Only D10 (Phase 4) is open.
+
 | # | Question | Proposed default |
 |---|---|---|
 | D1 | Which damage measure defines τ? | Benign traffic lost; the other §3.4 measures are reported alongside |
@@ -251,7 +254,7 @@ with you before the phase that needs them.
 | D4 | Attack budget R_A and pairs N_A | Sweep R_A as a multiple of the target link's capacity; N_A = 10 |
 | D5 | U_max and S_max | U_max = 0.8, S_max = 1.5 |
 | D6 | Optical reach | Configurable km limit; default unlimited until real data exists |
-| D7 | Which attacker the defender assumes when building the history | Oracle (worst case); other mechanisms as an experiment axis |
+| D7 | Which attacker the defender assumes when building the history | Accepted 2026-11-03: traceroute (§4.8); oracles and RTT/Ricci as experiment axes |
 | D8 | Attacker endpoints | Every PoP can source and sink attack traffic |
 | D9 | "Acceptable subset" for random selection | Candidates whose secondary score is within 10% of the best |
 | D10 | Recon lag L vs epoch length T_R | L in epochs, swept from 0 to 3 |
