@@ -144,9 +144,19 @@ def test_relative_damage_records_both_oracles():
     )
     assert default.oracle_knowledge == "benign"
     assert default.ratio == pytest.approx(1.0)
-    # The paper's oracle does no benign damage here: immune under D2.
+    # The paper's oracle does no benign damage here, but this plan does: under
+    # D2's "zero_or_inf" rule the ratio is infinite and not attack-immune.
     assert default.other_oracle_knowledge == "routing"
-    assert default.other_attack_immune and default.other_ratio == 0.0
+    assert not default.other_attack_immune and default.other_ratio == math.inf
+    earlier = relative_damage(
+        benign_aware,
+        graph,
+        benign,
+        attack,
+        ROUTING,
+        DamageConfig(zero_denominator="zero"),
+    )
+    assert earlier.other_attack_immune and earlier.other_ratio == 0.0
 
     paper = relative_damage(
         benign_aware,
@@ -156,7 +166,7 @@ def test_relative_damage_records_both_oracles():
         ROUTING,
         DamageConfig(),
     )
-    assert paper.attack_immune and paper.other_ratio == pytest.approx(1.0)
+    assert paper.ratio == math.inf and paper.other_ratio == pytest.approx(1.0)
     row = default.as_row()
     assert {"other_ratio", "other_denominator", "other_fresh_benign_loss"} <= row.keys()
 
@@ -164,3 +174,38 @@ def test_relative_damage_records_both_oracles():
 def test_unknown_oracle_knowledge_is_refused():
     with pytest.raises(ValueError, match="oracle_knowledge"):
         AttackConfig(budget=1.0, oracle_knowledge="traffic")
+
+
+def test_zero_or_inf_rule_when_fresh_plan_does_nothing():
+    """D2 (revised): both plans harmless -> 0 and immune; only the stale one -> inf."""
+    graph, benign = _path3()
+    attack = AttackConfig(budget=100.0, n_pairs=1)
+    harmless = make_plan([("x", "y")], 100.0, mechanism="probe", topology_id="t")
+    harmful = make_plan([("z", "y")], 100.0, mechanism="probe", topology_id="t")
+    both = relative_damage(
+        harmless, graph, benign, attack, ROUTING, DamageConfig(), fresh_plan=harmless
+    )
+    assert both.ratio == 0.0 and both.attack_immune
+    stale_only = relative_damage(
+        harmful, graph, benign, attack, ROUTING, DamageConfig(), fresh_plan=harmless
+    )
+    assert stale_only.ratio == math.inf and not stale_only.attack_immune
+    assert stale_only.reference == "probe" and stale_only.oracle_knowledge == "probe"
+
+
+def test_extra_comparisons_are_saved_as_columns():
+    graph, benign = _path3()
+    attack = AttackConfig(budget=100.0, n_pairs=1)
+    plan = benign_oracle_plan(graph, benign, attack, ROUTING, DamageConfig())
+    result = relative_damage(
+        plan,
+        graph,
+        benign,
+        attack,
+        ROUTING,
+        DamageConfig(),
+        extra_fresh_plans={"vs_self": plan},
+    )
+    row = result.as_row()
+    assert row["vs_self_ratio"] == pytest.approx(1.0)
+    assert row["reference"] == "oracle_benign" and row["other_reference"] == "oracle"

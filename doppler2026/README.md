@@ -5,10 +5,12 @@ This folder implements the experiment for the draft paper
 optical network so that link-flooding attack plans learned on earlier
 topologies stop working, while benign traffic is still carried safely.
 
-**Status:** Phase 2 done: five attackers (two oracles, random, traceroute,
-RTT/Ricci), reconnaissance metrics, damage, τ/η, and the reconnaissance
-experiment (RQ1–RQ3). See `CHANGES.md` for what has been done and `PLAN.md`
-§6 for what comes next.
+**Status:** Phase 3 built: the defender's feasible links, candidate pool,
+operational and security filters, selection, and a one-epoch experiment, on
+top of Phase 2's five attackers, damage, τ/η, and reconnaissance experiment
+(RQ1–RQ3). Open issues O2-O4 in `docs/decisions.md` need decisions before
+Phase 4. See `CHANGES.md` for what has been done and `PLAN.md` §6 for what
+comes next.
 
 ## What exists so far
 
@@ -25,9 +27,15 @@ experiment (RQ1–RQ3). See `CHANGES.md` for what has been done and `PLAN.md`
 | `recon/rtt_ricci.py` | RTT/Ricci attacker, with an RTT simulator; regional data loaders | §3.1.1, Eq. 2–4 |
 | `recon/inferred.py` | Inferred graph + edge ranking → attack plan (shared by both) | §3.3 |
 | `recon/metrics.py` | Topology recovery, P@k, path-level recovery | §3.4, Eq. 9 |
-| `damage.py` | Damage of a plan; τ and η against a fresh oracle plan; budget to disrupt | §2.4, §3.4, Eq. 1, Eq. 10 |
+| `damage.py` | Damage of a plan; η against a fresh oracle plan, τ against any supplied fresh plan; budget to disrupt | §2.4, §3.4, Eq. 1, Eq. 10 |
 | `results.py` | Result folders, `config.json` with provenance, tidy CSVs | PLAN §10 |
 | `experiments/recon_eval.py` | The reconnaissance evaluation | §3.7 RQ1–RQ3 |
+| `feasibility.py` | Feasible IP links E* from the fiber graph | §4.4 |
+| `candidates.py` | MILP candidate pool (transponders, benign flow, capacity, U_max) | §4.5–4.6, §4.10–4.11, Eq. 11–16 |
+| `filters.py` | Operational filter: connectivity, MLU, path stretch under the network's routing | §4.6–4.7, Eq. 16–17 |
+| `security.py` | Security filter T(G') and pairwise τ of the safe pool; history attacker | §4.8–4.9, Eq. 19–24 |
+| `selection.py` | Secondary ranking and seeded random choice | §4.11 |
+| `experiments/defender_epoch.py` | One defender epoch per network (the Phase 3 check) | §4.3–4.11 |
 
 A minimal example, from the repository root:
 

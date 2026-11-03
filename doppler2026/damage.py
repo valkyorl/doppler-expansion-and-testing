@@ -41,6 +41,7 @@ from .model import (
     ORACLE_KNOWLEDGE,
     AttackConfig,
     AttackPlan,
+    Comparison,
     DamageConfig,
     DamageReport,
     Pair,
@@ -140,6 +141,7 @@ def relative_damage(
     *,
     fresh_plan: AttackPlan | None = None,
     other_fresh_plan: AttackPlan | None = None,
+    extra_fresh_plans: Mapping[str, AttackPlan] | None = None,
 ) -> RelativeDamage:
     """Damage of ``plan`` on ``topology`` relative to a fresh oracle plan.
 
@@ -149,12 +151,15 @@ def relative_damage(
     (decision D15). The same comparison against the other oracle is
     recorded in the ``other_*`` fields, so the choice can be changed later
     from saved results. Pass ``fresh_plan`` and ``other_fresh_plan`` to
-    reuse plans already computed.
+    reuse plans already computed, or to compare against plans that are not
+    oracle plans: the security filter passes a fresh plan of the stale plan's
+    own mechanism (Eq. 1; O3 option e). ``extra_fresh_plans`` adds further
+    comparisons, saved as ``<label>_ratio`` columns.
 
     The ratio is τ (Eq. 1) when ``plan`` was learned on another topology and
     η (Eq. 10) when it was learned on this one. When the fresh plan does no
-    damage, the result is flagged ``attack_immune`` and the ratio follows
-    decision D2 (``config.zero_denominator``).
+    damage, the ratio and ``attack_immune`` follow decision D2
+    (``config.zero_denominator``).
     """
     evaluated_on = compute_topology_id(topology)
     knowledge = attack.oracle_knowledge
@@ -176,16 +181,20 @@ def relative_damage(
 
     plan_damage = evaluate_damage(topology, benign, plan, routing, config)
     numerator = plan_damage.measure(config.tau_measure)
-    fresh_damage = evaluate_damage(
-        topology, benign, fresh(fresh_plan, knowledge), routing, config
-    )
-    other_damage = evaluate_damage(
-        topology, benign, fresh(other_fresh_plan, other), routing, config
-    )
+    reference = fresh(fresh_plan, knowledge)
+    other_plan = fresh(other_fresh_plan, other)
+    fresh_damage = evaluate_damage(topology, benign, reference, routing, config)
+    other_damage = evaluate_damage(topology, benign, other_plan, routing, config)
     denominator = fresh_damage.measure(config.tau_measure)
     other_denominator = other_damage.measure(config.tau_measure)
     ratio, immune = _ratio(numerator, denominator, config)
     other_ratio, other_immune = _ratio(numerator, other_denominator, config)
+    extra = []
+    for label, extra_plan in (extra_fresh_plans or {}).items():
+        value = evaluate_damage(topology, benign, extra_plan, routing, config).measure(
+            config.tau_measure
+        )
+        extra.append(Comparison(label, value, *_ratio(numerator, value, config)))
 
     return RelativeDamage(
         plan_topology_id=plan.topology_id,
@@ -198,22 +207,41 @@ def relative_damage(
         attack_immune=immune,
         plan_damage=plan_damage,
         fresh_damage=fresh_damage,
-        oracle_knowledge=knowledge,
-        other_oracle_knowledge=other,
+        oracle_knowledge=_knowledge(reference, knowledge),
+        other_oracle_knowledge=_knowledge(other_plan, other),
         other_denominator=other_denominator,
         other_ratio=other_ratio,
         other_attack_immune=other_immune,
         other_fresh_damage=other_damage,
+        reference=reference.mechanism,
+        other_reference=other_plan.mechanism,
+        extra=tuple(extra),
+    )
+
+
+def _knowledge(plan: AttackPlan, oracle_default: str) -> str:
+    """``oracle_knowledge`` column: the oracle's knowledge, or the mechanism."""
+    return {"oracle_benign": "benign", "oracle": "routing"}.get(
+        plan.mechanism, plan.mechanism if plan.mechanism else oracle_default
     )
 
 
 def _ratio(
     numerator: float, denominator: float, config: DamageConfig
 ) -> tuple[float, bool]:
-    """τ or η, and whether the network is attack-immune (D2)."""
-    if denominator <= config.zero_tolerance:
-        return (0.0 if config.zero_denominator == "zero" else math.nan), True
-    return numerator / denominator, False
+    """τ or η, and whether the network is attack-immune (D2).
+
+    When the fresh plan does no damage: under ``"zero_or_inf"`` the ratio is
+    0 (immune) if the evaluated plan does none either, and infinity (not
+    immune) if it still does; ``"zero"`` and ``"nan"`` ignore the numerator.
+    """
+    if denominator > config.zero_tolerance:
+        return numerator / denominator, False
+    if config.zero_denominator == "zero_or_inf":
+        if numerator > config.zero_tolerance:
+            return math.inf, False
+        return 0.0, True
+    return (0.0 if config.zero_denominator == "zero" else math.nan), True
 
 
 def budget_to_disrupt(

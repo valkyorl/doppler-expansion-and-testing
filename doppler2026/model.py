@@ -112,14 +112,22 @@ class AttackConfig:
             raise ValueError(f"oracle_knowledge must be one of {ORACLE_KNOWLEDGE}")
 
 
+ZERO_DENOMINATOR_RULES = ("zero_or_inf", "zero", "nan")
+"""What τ is when the fresh plan does no damage (decision D2)."""
+
+
 @dataclass(frozen=True)
 class DamageConfig:
     """How damage and τ are measured (decisions D1, D2; interpretations I1, I2).
 
     ``tau_measure``: which damage measure τ and η are computed from (D1).
     ``zero_denominator``: what τ is when the fresh plan does no damage (D2).
-    ``"zero"`` sets τ = 0; ``"nan"`` leaves it undefined. Either way the
-    result is flagged ``attack_immune``.
+    ``"zero_or_inf"`` (default, revised 2026-11-03 for same-mechanism τ,
+    O3): if the evaluated plan does no damage either, τ = 0 and the result is
+    flagged ``attack_immune``; if it still does damage, τ = infinity (the
+    stale plan works where fresh reconnaissance fails), not immune. The
+    earlier rule ``"zero"`` sets τ = 0 regardless; ``"nan"`` leaves it
+    undefined; both flag ``attack_immune``.
     ``safe_threshold``: utilization above which a link counts as driven past
     its safe operating point (I1).
     ``congestion_threshold``: utilization above which a link counts as
@@ -138,7 +146,7 @@ class DamageConfig:
     """
 
     tau_measure: str = "benign_loss"
-    zero_denominator: str = "zero"
+    zero_denominator: str = "zero_or_inf"
     safe_threshold: float = 0.8
     congestion_threshold: float = 1.0
     zero_tolerance: float = 1e-9
@@ -152,8 +160,10 @@ class DamageConfig:
             raise ValueError(
                 f"tau_measure must be one of {DAMAGE_MEASURES}, got {self.tau_measure!r}"
             )
-        if self.zero_denominator not in ("zero", "nan"):
-            raise ValueError("zero_denominator must be 'zero' or 'nan'")
+        if self.zero_denominator not in ZERO_DENOMINATOR_RULES:
+            raise ValueError(
+                f"zero_denominator must be one of {ZERO_DENOMINATOR_RULES}"
+            )
 
 
 @dataclass(frozen=True)
@@ -191,6 +201,17 @@ class DamageReport:
 
 
 @dataclass(frozen=True)
+class Comparison:
+    """A plan's damage against one more fresh plan (``RelativeDamage.extra``)."""
+
+    label: str
+    """Mechanism of the fresh plan, used as the column prefix."""
+    denominator: float
+    ratio: float
+    attack_immune: bool
+
+
+@dataclass(frozen=True)
 class RelativeDamage:
     """A plan's damage relative to a fresh oracle plan on the same topology.
 
@@ -203,10 +224,15 @@ class RelativeDamage:
     - If it was learned on the same topology by a non-oracle mechanism,
       ``ratio`` is the normalized effectiveness η(A, G) (paper Eq. 10).
 
-    The denominator comes from the oracle named by ``oracle_knowledge``
-    (decision D15). The ``other_*`` fields repeat the comparison against the
-    other oracle, so τ and η can be recomputed under either choice from saved
-    files.
+    The denominator is the fresh plan A*: by default an oracle plan, named
+    by ``oracle_knowledge`` (decision D15), which is η (Eq. 10). For τ in the
+    security filter it is a fresh plan of the stale plan's own mechanism
+    (Eq. 1, "constructed with current knowledge of topology G_j"; O3 option
+    e), and ``oracle_knowledge`` then names that mechanism. ``reference``
+    and ``other_reference`` give the fresh plans' mechanisms. The ``other_*``
+    fields repeat the comparison against a second fresh plan (the other
+    oracle, by default), and ``extra`` holds any further comparisons, so the
+    ratio can be recomputed under another reference from saved files.
 
     ``ratio`` can exceed 1. The paper's oracle ranks links by how much attack
     traffic it can concentrate (§3.2), which ignores benign traffic (open
@@ -214,7 +240,7 @@ class RelativeDamage:
     a fixed rule for choosing pairs, so it too is not a proven upper bound.
     Values are stored unclipped.
 
-    ``attack_immune`` is True when the fresh plan does no damage (D2).
+    ``attack_immune`` follows decision D2 (``DamageConfig.zero_denominator``).
     """
 
     plan_topology_id: str
@@ -233,6 +259,9 @@ class RelativeDamage:
     other_ratio: float
     other_attack_immune: bool
     other_fresh_damage: DamageReport
+    reference: str = ""
+    other_reference: str = ""
+    extra: tuple[Comparison, ...] = ()
 
     def as_row(self) -> dict[str, object]:
         """Flatten to one row of ``transferability.csv`` (PLAN §10)."""
@@ -250,7 +279,13 @@ class RelativeDamage:
             "other_denominator": self.other_denominator,
             "other_ratio": self.other_ratio,
             "other_attack_immune": self.other_attack_immune,
+            "reference": self.reference,
+            "other_reference": self.other_reference,
         }
+        for comparison in self.extra:
+            row[f"{comparison.label}_denominator"] = comparison.denominator
+            row[f"{comparison.label}_ratio"] = comparison.ratio
+            row[f"{comparison.label}_attack_immune"] = comparison.attack_immune
         for prefix, report in (
             ("plan", self.plan_damage),
             ("fresh", self.fresh_damage),

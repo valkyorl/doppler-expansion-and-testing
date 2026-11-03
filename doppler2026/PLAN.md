@@ -6,8 +6,10 @@ and checking the experiment. Paper references use § and Eq. numbers. Audit
 references ("audit #n") point to items in
 `docs/knowledge/analysisResults/doppler-paper-vs-code.html`.
 
-Status: **Phase 2 complete (2026-10-30); decision D15 implemented and Phase 2
-re-run (2026-11-03).** Next: Phase 3. See `CHANGES.md`.
+Status: **Phase 3 built (2026-11-03).** O2-O4 are decided. With the current
+defaults the one-epoch check passes on sprint and ANS; CRL, bellCanada, and
+surfNet find no safe topology in epoch 1 (every operational candidate keeps
+τ near 1). Next: Phase 4. See `CHANGES.md`.
 
 ---
 
@@ -57,14 +59,16 @@ inputs: fiber graph G_F, current topology G_t, transponders txp(v),
 Two points carry most of the design:
 
 - **Generate-then-filter.** T(G′) depends on routing attack traffic and on a
-  fresh oracle plan for G′, so it is not linear and cannot sit inside the
+  fresh plan for G′ (the attacker re-measuring; O3 option e), so it is not
+  linear and cannot sit inside the
   MILP. The paper allows this: it enumerates up to K candidates satisfying the
   constraints (Eq. 31) and filters them (§4.3). The MILP only produces
   operationally plausible candidates; the security filter decides.
-  The fresh plan comes from the oracle that also knows benign traffic
-  (decision D15, flagged for review). It simulates one attack per link
-  (about twice the number of links per candidate and budget), so its cost
-  is part of the security filter's cost in Phase 3.
+  The fresh plan is built by the same mechanism as the stale plan, from
+  fresh measurements of G′ (Eq. 1: "constructed with current knowledge of
+  topology G_j"). Until 2026-11-03 this plan said "a fresh oracle plan",
+  which the paper does not say; see O3 in `docs/decisions.md`. The oracle
+  comparisons the filter saves alongside are its costly part.
 - **The defender never sees attack traffic.** The MILP uses the estimated
   benign demand D_t (§4.3 input 4). Attack plans enter only through the
   security filter. This fixes audit #16.
@@ -102,7 +106,8 @@ doppler2026/
   routing.py            in-memory TE wrapper around onset.te.engine
   damage.py             D(A, G), τ (Eq. 1), T(G′) (Eq. 21)
   feasibility.py        E* with fiber path + optical reach checks (§4.4)
-  candidates.py         MILP pool generation, local/expanded sets (§4.10–4.11)
+  candidates.py         MILP pool generation, local/expanded sets, Candidate
+                        (§4.10–4.11)
   filters.py            operational filter (Eq. 15–17, connectivity)
   security.py           security filter, pairwise τ matrix (Eq. 22–24)
   selection.py          secondary ranking + seeded random choice (§4.11)
@@ -132,10 +137,10 @@ audit item it closes.
 | RTT/Ricci attacker | §3.1.1, Eq. 2–4 | Simulated RTT = min over noisy samples of propagation delay along true routes; Ĝ_ε for an ε sweep; Ollivier–Ricci curvature via **GraphRicciCurvature**; rank by most negative κ. Also a loader for the existing reconstruction `data/graphs/json/regional/reconstruction_regional.json` | GraphRicciCurvature | #6 |
 | Recon metrics | §3.4, Eq. 9–10 | Edge precision/recall/F1 (only when ground truth is independent), P@k, path-level critical-link recovery, η | `routing.py` | #6 |
 | Damage D | §2.4, §3.4 | Route benign D_t plus attack plan together with the network's TE; report all five §3.4 measures. Primary measure for τ: benign traffic lost (decision D1) | `onset.te.engine` | #2 |
-| τ, T(G′) | Eq. 1, 21 | τ = D(A_i, G′) / D(A*_{G′}, G′), where A*_{G′} is a fresh oracle plan on G′ with the same budget | oracle | #2, #3 |
+| τ, T(G′) | Eq. 1, 21 | τ = D(A_i, G′) / D(A*_{G′}, G′), where A*_{G′} is a fresh plan of A_i's mechanism on G′ with the same budget (O3 option e; was "a fresh oracle plan" until 2026-11-03) | the attacker's mechanism | #2, #3 |
 | Feasible links E* | §4.4 | A pair (u, v) is feasible when a fiber path exists whose length is within optical reach; ROADM/spectrum hook defaults to "allowed" and is documented as an assumption (no data in repo) | fiber graph coordinates | #11 |
-| Per-link capacity C_e | Eq. 15–16 | Capacities come from the topology instead of a fixed 100 Gbps | small additive change to the MILP (§5) | #15 |
-| Candidate pool | §4.10–4.11 | Edge-flow MILP built by `open_doppler._build_edge_flow_milp`, with doppler2026's own enumeration loop: benign demand, U_max, at least one change, configurable secondary objective. **Local** set: candidate links near high-betweenness links of the *current* topology and near links targeted by plans in the history. **Expanded** set: all of E* | `open_doppler`, `preprocessing` | #1, #5, #12 |
+| Per-link capacity C_e | Eq. 15–16 | Capacities come from the topology instead of a fixed 100 Gbps; a new link gets the median (D17) | `candidates.py` (P9) | #15 |
+| Candidate pool | §4.10–4.11 | Edge-flow MILP with flow aggregated per source, built in `candidates.py` (P9), with its own enumeration loop: benign demand, U_max, at least one change, configurable secondary objective. **Local** set: candidate links near high-betweenness links of the *current* topology and near links targeted by plans in the history. **Expanded** set: all of E* | HiGHS (not `open_doppler`, P9) | #1, #5, #12 |
 | Operational filter | §4.6–4.7, Eq. 15–17 | Re-route D_t on G′ with the real TE method (ECMP by default). Reject on MLU > U_max, any unroutable demand, latency stretch > S_max against the initial topology, or broken connectivity/redundancy requirements | `routing.py` | #13, #14, routing mismatch |
 | Security filter | Eq. 21–22 | Compute T(G′) over the last h plans; keep G′ if T(G′) ≤ τ_max | `damage.py` | #2, #3 |
 | Diversity | §4.9, Eq. 23–24 | Pairwise τ(A_i, G_j) matrix over the safe pool; report clusters | `damage.py` | #4 |
@@ -166,10 +171,10 @@ cannot work correctly without it. All are listed in `CHANGES.md` when made.
    sharing: its older hop-by-hop model let a link carry more than its
    capacity, and was fixed on 2026-11-03 (decision E1 in `docs/decisions.md`;
    results of existing methods change when links are overloaded).
-3. **`src/onset/base_types.py` and `src/onset/open_doppler.py`: optional
-   per-edge capacity.** An optional `edge_capacity` mapping on
-   `OptimizationProblem`, used by the MILP's utilization rows when present
-   (Eq. 15–16). With it absent, behavior is identical to today.
+3. ~~`src/onset/base_types.py` and `src/onset/open_doppler.py`: optional
+   per-edge capacity.~~ **Not needed** (decision P9, 2026-11-03): the
+   candidate MILP is built in `doppler2026/candidates.py`, with per-link
+   capacity, so shared code is unchanged.
 4. **`pyproject.toml`: an optional extra** (done in Phase 2). It lists
    GraphRicciCurvature's real dependencies (networkit, POT, python-louvain);
    the library itself is installed with `--no-deps` because its SciPy pin
@@ -253,7 +258,7 @@ later additions D16–D25 (see `docs/decisions.md`). Only D10 (Phase 4) is open.
 | D2 | τ when the fresh plan does no damage (D(A*, G′) = 0) | Define τ = 0 and flag the candidate as "attack-immune at this budget" |
 | D3 | History length h, threshold τ_max, pool size K | h = 3, τ_max = 0.5, K = 50; swept in experiments |
 | D4 | Attack budget R_A and pairs N_A | Sweep R_A as a multiple of the target link's capacity; N_A = 10 |
-| D5 | U_max and S_max | U_max = 0.8, S_max = 1.5 |
+| D5 | U_max and S_max | U_max = 0.8, S_max = 3 (revised 2026-11-03 from 1.5; O4) |
 | D6 | Optical reach | Configurable km limit; default unlimited until real data exists |
 | D7 | Which attacker the defender assumes when building the history | Accepted 2026-11-03: traceroute (§4.8); oracles and RTT/Ricci as experiment axes |
 | D8 | Attacker endpoints | Every PoP can source and sink attack traffic |

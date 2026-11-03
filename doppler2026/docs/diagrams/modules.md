@@ -31,13 +31,12 @@ flowchart LR
         end
         subgraph exps["experiments/"]
             recon_eval["recon_eval.py"]
+            defender_epoch["defender_epoch.py"]
         end
         results["results.py"]
     end
 
     subgraph shared["src/onset/ (existing)"]
-        pre["preprocessing.py"]
-        od["open_doppler.py"]
         te["te/engine.py"]
         wolf["alpwolf.py"]
     end
@@ -47,9 +46,9 @@ flowchart LR
     run --> controller
     controller --> candidates & filters & security & selection & transition & traffic
     controller --> recon
-    candidates --> feasibility & pre & od
+    candidates --> feasibility & topo
     filters --> routing
-    security --> damage
+    security --> damage & oracle & tr
     damage --> routing & oracle
     transition --> wolf & routing
     recon --> plans & routing
@@ -58,13 +57,14 @@ flowchart LR
     inferred --> plans
     metrics --> oracle & routing
     recon_eval --> recon & damage & traffic & results
+    defender_epoch --> feasibility & candidates & filters & security & selection & traffic & results
     routing --> te
     traffic --> routing
     oracle & rnd & damage --> topo
     plans --> model
 
     classDef existing stroke-dasharray: 5 5
-    class pre,od,te,wolf existing
+    class te,wolf existing
 ```
 
 `model.py` (shared dataclasses) is used by nearly every module; only the

@@ -4,6 +4,194 @@ Every file created or changed for the Doppler 2026 experiment, inside or
 outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first.
 
+## 2026-11-03: Five-network epoch with the current defaults
+
+Run `defender_epoch/phase3-defaults-2026-11-03` (S_max = 3, τ against the
+attacker re-measuring, oracle comparisons off). The earlier run
+`phase3-smax3-2026-11-03` was stopped during bellCanada (oracle comparisons
+on); its sprint, ANS, and CRL rows are kept.
+
+| Network | Pass operational | Safe | Selected T(G') | Selected MLU | Selected stretch | Time |
+|---|---|---|---|---|---|---|
+| sprint | 11 | 3 | 0.39 | 0.50 | 1.03 | 4 s |
+| ANS | 12 | 4 | 0.37 | 0.53 | 1.48 | 7 s |
+| CRL | 6 | 0 | none | | | 24 s |
+| bellCanada | 19 | 0 | none | | | 37 s |
+| surfNet | 17 | 0 | none | | | 41 s |
+
+- The epoch now takes 4-41 s; the MILP is about half of it.
+- On CRL, bellCanada, and surfNet nearly every operational candidate has
+  τ = 1 (CRL all six; bellCanada minimum 0.56; surfNet 0.87-1.80): removing
+  one or two links rarely moves the cut the stale plan attacks. τ above 1
+  means the stale plan beats the attacker's own fresh plan.
+- The safe pools are not attack-distinct (§4.9): pairwise τ off the diagonal
+  is 0.65-1.0 on sprint and 0.51-2.25 (mean 1.23) on ANS.
+- This points at the candidate space (epoch-1 candidates only remove links,
+  O2 kept for now) rather than the filters. Spare transponders, the expanded
+  candidate set, and the Eq. 18 objective are the Phase 4 experiment axes
+  that widen it.
+
+## 2026-11-03: Oracle comparisons in the security filter off by default (D28)
+
+- `security.py`: `SecurityConfig.oracle_comparisons` defaults to False (was
+  True). Requested by the user after timing: on bellCanada one candidate's
+  security check took 26.6 s with the comparisons and 0.9 s without, and
+  they do not change which candidates pass. Analysis runs can turn them on.
+  Docstrings updated. No change to which topologies are accepted.
+- `tests/test_d26_defender.py`: the test that checks the oracle columns now
+  turns them on explicitly; the off test now checks the default.
+- `docs/decisions.md`: new D28; the D15 review note updated.
+
+## 2026-11-03: O4 decided: default S_max = 3
+
+- `filters.py`: `OperationalConfig.s_max` default 3.0 (was 1.5). S_max is a
+  ratio: a demand's path on the candidate may be at most 3x as long as on
+  G_0, lengths in km. The ratio form, the every-demand rule, and km lengths
+  are unchanged (Eq. 17, D19). Decided by the user (O4, option 1); S_max is
+  swept in experiments.
+- `docs/decisions.md`: D5 revised; O4 marked decided, with pass rates at
+  S_max = 3 (sprint 11, ANS 12, CRL 6, bellCanada 19, surfNet 17 of 50;
+  at 1.5: 3, 2, 1, 5, 0). New section "Possible paper changes (for the
+  authors)": Eq. 17 with an additive latency allowance (more realistic
+  latency budgets; O4 option 3, not implemented), and §3.2's oracle wording
+  (D15). `PLAN.md` §8 D5 row updated.
+
+## 2026-11-03: O3 option (e): τ against the attacker re-measuring; D2 revised
+
+**Behavior change.** τ's fresh plan A* was an oracle plan, following a
+planning interpretation in PLAN §4. The paper defines A*_j as "an attack plan
+constructed with current knowledge of topology G_j" (Eq. 1), and only η
+(Eq. 10) uses the oracle. Decided by the user: A* is now a fresh plan of the
+stale plan's own mechanism, measured again on the candidate (O3, option e).
+
+- `security.py`: `fresh_plan_like` builds A* with the stale plan's mechanism
+  (traceroute; other mechanisms raise until added), measured with the next
+  epoch's seed. `security_check` and `pairwise_transferability` take that
+  seed. Both oracles' plans are still compared and saved as extra columns
+  (`oracle_benign_ratio`, `oracle_ratio`), switchable with
+  `SecurityConfig.oracle_comparisons`.
+- `model.py`, `damage.py`: D2 revised (rule `"zero_or_inf"`, now the
+  default): if the fresh plan does no damage, τ = 0 and attack-immune when
+  the evaluated plan does none either, τ = infinity and not immune when it
+  still does. `RelativeDamage` gained `reference`, `other_reference`
+  (mechanisms of the fresh plans) and `extra` comparisons, saved as
+  `<label>_ratio` columns; `relative_damage` accepts `extra_fresh_plans`.
+  `oracle_knowledge` in a row now names the reference's knowledge, or its
+  mechanism when it is not an oracle. Phase 2 results are unchanged (no
+  zero-denominator row had a damaging plan; checked on the D15 run).
+- `experiments/defender_epoch.py`: passes the fresh-measurement seed.
+- Tests: `test_d26_damage.py` (the old-rule expectation updated, new tests
+  for the zero-or-infinity rule and extra columns); `test_d26_defender.py`
+  (security tests now use traceroute history plans: τ = 1 on the unchanged
+  topology, worst plan wins, attack-immune, oracle columns on/off, an unknown
+  mechanism refused, pairwise diagonal 1).
+- Docs: `docs/decisions.md` (O3 decided, D2 revised, D15 no longer affects
+  τ), `PLAN.md` (§2, §4 τ row), `README.md`.
+
+Five-network epoch rerun (`defender_epoch/phase3-o3e-2026-11-03`):
+
+| Network | Pass operational | Safe | Selected T(G') | Time |
+|---|---|---|---|---|
+| sprint | 3 | 3 | 0.31 | 5 s |
+| ANS | 2 | 1 | 0.37 | 7 s |
+| CRL | 1 | 0 | none | 31 s |
+| bellCanada | 5 | 0 | none | 160 s |
+| surfNet | 0 | 0 | none | 32 s |
+
+The filter now binds: bellCanada's five operational candidates and CRL's one
+have τ = 1 (each removes a link the stale plan does not need), and ANS
+rejects one of two. sprint's safe pool is not attack-distinct (pairwise τ
+0.77-1.0, mean 0.93).
+
+## 2026-11-03: Phase 3 (defender) built
+
+### New modules
+
+- `feasibility.py`: E* (§4.4, D16, D6). The fiber graph is the original
+  topology; feasible links are original links plus PoP pairs within two
+  fiber hops, with an optional km reach and a pluggable ROADM/spectrum
+  check (default: allow; optical data is a gap).
+- `candidates.py`: the candidate pool MILP (§4.5-4.6, §4.10-4.11, Eq. 11-16)
+  and its enumeration loop: transponders (D18), benign flow aggregated per
+  source (exact; decision P9), per-link capacity (D17), U_max (D5), at least
+  one change and no-good cuts (I14), objectives `random_weights` (default),
+  `changes_plus_mlu`, and `min_overlap` (Eq. 18; D22), candidate sets
+  local / liberal / expanded (D23), HiGHS with time budget T_opt (D25).
+- `filters.py`: operational filter (§4.6-4.7, Eq. 16-17): connectivity,
+  routability, MLU and path stretch under the network's routing (D5, D19,
+  D20). Reference lengths carry their metric, and a mismatch is refused.
+- `security.py`: history attacker (traceroute, D7, D26), T(G') and the
+  security filter (Eq. 21-22, D2, D3, D15, D21), pairwise τ of the safe pool
+  (Eq. 24).
+- `selection.py`: secondary score and seeded random choice from the
+  acceptable subset (§4.11, D9, D24).
+- `experiments/defender_epoch.py`: one epoch per network, writing
+  `epochs.csv`, `candidates.csv`, and `transferability.csv` (PLAN §10), and
+  checking the PLAN §6 Phase 3 criterion.
+- `tests/test_d26_defender.py`: 16 hand-checkable tests (E*, transponders,
+  capacities, local set and history targets, pool constraints and
+  reproducibility, infeasible demand, stretch in hops and km, filter
+  reasons, worst-plan T(G'), attack-immune flag, pairwise matrix, selection
+  tolerance and seeding, one epoch on sprint).
+
+### Plan change: no shared-code change for per-link capacity (P9)
+
+The planned change to `src/onset/base_types.py` and `open_doppler.py`
+(PLAN §5 item 3) was written, tested, and then reverted before commit: the
+existing MILP has one flow per source-destination pair and, with every link
+usable, found no solution for CRL in 60 s (199k variables). `candidates.py`
+builds its own MILP with flow per source, which is exactly equivalent and
+about N times smaller. Shared code is unchanged in this phase.
+
+### Bug found while testing
+
+HiGHS shares one thread pool per process and refuses to run a solver that
+asks for a different thread count once the pool exists. The first version
+set `threads = 1` and read the refusal as "time limit, no solution", so
+tests failed only when run after other HiGHS tests. `threads` is no longer
+set (HiGHS's MIP solver is deterministic for any thread count; a test checks
+the pool reproduces), and a refusal now raises an error.
+
+### First full epoch (run `defender_epoch/phase3-check-2026-11-03`, local)
+
+| Network | Candidates | Pass operational | Safe | Selected T(G') | Time |
+|---|---|---|---|---|---|
+| sprint | 50 | 3 | 3 | 0.24 | 5 s |
+| ANS | 50 | 2 | 2 | 0.16 | 9 s |
+| CRL | 50 | 1 | 0 | none | 28 s |
+| bellCanada | 50 | 5 | 5 | 0.48 | 280 s (mostly the pairwise matrix) |
+| surfNet | 50 | 0 | 0 | none | 30 s |
+
+The PLAN §6 check (selected topology meets every operational constraint and
+has T(G') <= τ_max; pairwise matrix produced) passes on sprint, ANS, and
+bellCanada. Three design problems surfaced and are recorded as open issues
+O2 (no spare transponders: candidates only remove links), O3 (the security
+filter does not bind under D15 on three networks), and O4 (the stretch
+limit rejects almost every candidate) in `docs/decisions.md`, with options.
+Interpretations I14-I17 were added there too.
+
+Follow-up the same day: O2 was overstated. As the user pointed out, a
+removal frees transponders, and a second epoch from the selected topology
+does offer additions and swaps (ANS: 1 addition and 7 swaps among 50). The
+O2 entry now says so and proposes measuring the link count over many epochs
+in Phase 4 before deciding. O3 now explains the two relative-threshold
+variants (c1, against the plan's own topology; c2, against the current
+topology).
+
+Later the same day: O2 decided (a), keep it for now. O3: found that Eq. 1's
+A*_j is "constructed with current knowledge of topology G_j", not an oracle
+plan; PLAN §4's mapping of τ to a fresh oracle plan was a planning
+interpretation. Recorded in O3 as option (e), same-mechanism fresh
+reconnaissance; no code changed yet.
+
+### Docs
+
+`PLAN.md` (status, §4 rows, §5 item 3 marked not needed, layout),
+`README.md` (status, module table), `docs/paper_map.md` (§4.4-4.12 rows),
+`docs/references.md` (HiGHS and NetworkX uses; no-good cuts;
+source-aggregated flow; betweenness for the local set),
+`docs/diagrams/modules.md`, `docs/decisions.md` (P9, I14-I17, O2-O4).
+
 ## 2026-11-03: E1 fixed; D26, D27, I3, I4 accepted
 
 ### Bug fix outside this folder: `evaluate()` capacity (E1)
