@@ -5,9 +5,10 @@ This folder implements the experiment for the draft paper
 optical network so that link-flooding attack plans learned on earlier
 topologies stop working, while benign traffic is still carried safely.
 
-**Status:** Phase 1 done: attack plans, the oracle and random attackers,
-damage, and τ/η can be computed on any topology. See `CHANGES.md` for what
-has been done and `PLAN.md` §6 for what comes next.
+**Status:** Phase 2 done: four attackers (oracle, random, traceroute,
+RTT/Ricci), reconnaissance metrics, damage, τ/η, and the reconnaissance
+experiment (RQ1–RQ3). See `CHANGES.md` for what has been done and `PLAN.md`
+§6 for what comes next.
 
 ## What exists so far
 
@@ -20,7 +21,13 @@ has been done and `PLAN.md` §6 for what comes next.
 | `attack_plans.py` | Turn chosen pairs into a plan with an equal budget split | Eq. 7–8 |
 | `recon/oracle.py` | Perfect-knowledge attacker | §3.2 |
 | `recon/random_plan.py` | No-knowledge attacker | §3.2 |
-| `damage.py` | Damage of a plan; τ and η against a fresh oracle plan | §2.4, Eq. 1, Eq. 10 |
+| `recon/traceroute.py` | Traceroute attacker, with a probe simulator | §3.1.2, Eq. 5–6 |
+| `recon/rtt_ricci.py` | RTT/Ricci attacker, with an RTT simulator; regional data loaders | §3.1.1, Eq. 2–4 |
+| `recon/inferred.py` | Inferred graph + edge ranking → attack plan (shared by both) | §3.3 |
+| `recon/metrics.py` | Topology recovery, P@k, path-level recovery | §3.4, Eq. 9 |
+| `damage.py` | Damage of a plan; τ and η against a fresh oracle plan; budget to disrupt | §2.4, §3.4, Eq. 1, Eq. 10 |
+| `results.py` | Result folders, `config.json` with provenance, tidy CSVs | PLAN §10 |
+| `experiments/recon_eval.py` | The reconnaissance evaluation | §3.7 RQ1–RQ3 |
 
 A minimal example, from the repository root:
 
@@ -51,12 +58,36 @@ print(result.ratio, result.plan_damage.benign_loss)   # 1.0, about 0.026
 | `docs/decisions.md` | Choices the paper leaves open, and what was decided |
 | `docs/references.md` | Libraries, methods, and datasets used, with citations |
 | `docs/diagrams/` | Control loop, module map, and data-flow diagrams |
-| `docs/Doppler_security_26.pdf` | The paper draft (add a copy here; not yet present) |
+| `docs/Doppler_security_26.pdf` | The paper draft (kept out of git; never commit or publish it) |
 
 ## Running
 
 All commands run from the repository root with the project's virtual
 environment active.
+
+### Installing the Ricci dependency
+
+The RTT/Ricci attacker needs GraphRicciCurvature 0.6.1. Its package metadata
+pins `scipy<=1.13.1`, which has no Python 3.13 build, but its code never
+imports SciPy (decision P8). Install its real dependencies, then the
+library without its own dependency list:
+
+```bash
+pip install -e ".[doppler2026]"          # networkit, POT, python-louvain
+pip install --no-deps GraphRicciCurvature==0.6.1
+```
+
+`pip check` will then report the SciPy pin as unmet; that is expected.
+
+### Reconnaissance experiment (Phase 2)
+
+```bash
+python -m doppler2026.experiments.recon_eval --networks ANS CRL bellCanada sprint surfNet
+```
+
+Results go to `data/results/doppler2026/recon_eval/<run_id>/` (see
+`PLAN.md` §10). `data/` is git-ignored, so results stay local; `config.json`
+in each run is enough to reproduce it.
 
 Run this experiment's tests:
 
@@ -74,7 +105,7 @@ ruff check --isolated --target-version py313 --line-length 88 \
 ruff format --isolated --check doppler2026
 ```
 
-The experiment runner (`python -m doppler2026.run`) arrives in
+The multi-epoch Doppler runner (`python -m doppler2026.run`) arrives in
 Phase 4.
 
 ## Layout

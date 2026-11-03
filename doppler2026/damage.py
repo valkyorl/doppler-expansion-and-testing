@@ -19,6 +19,10 @@ Relative damage. ``relative_damage`` divides a plan's damage by the damage
 of a fresh oracle plan built on the topology being evaluated, with the same
 budget. This one ratio is the paper's τ (Eq. 1) for a stale plan and η
 (Eq. 10) for a plan measured on the same topology.
+
+Budget to disrupt. ``budget_to_disrupt`` is the fifth §3.4 measure: the
+smallest aggregate budget R_A at which a plan's pairs, with the equal split
+of Eq. 8, start to cost benign traffic (decision D14).
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ from itertools import pairwise
 
 import networkx as nx
 
+from .attack_plans import rescale
 from .model import (
     AttackConfig,
     AttackPlan,
@@ -174,3 +179,42 @@ def relative_damage(
         plan_damage=plan_damage,
         fresh_damage=fresh_damage,
     )
+
+
+def budget_to_disrupt(
+    topology: nx.Graph,
+    benign: Mapping[Pair, float],
+    plan: AttackPlan,
+    routing: RoutingConfig,
+    config: DamageConfig,
+    *,
+    max_budget: float,
+    relative_tolerance: float = 1e-3,
+) -> float:
+    """Smallest budget at which ``plan``'s pairs cause benign loss (§3.4, D14).
+
+    The pairs of ``plan`` are kept and the budget is split equally over them
+    (Eq. 8); only the total changes. Bisection finds the smallest budget
+    whose benign loss exceeds ``config.disruption_level``, to within
+    ``relative_tolerance``. Returns ``math.inf`` if even ``max_budget`` does
+    not reach it.
+
+    Bisection assumes benign loss does not fall as the budget grows, which
+    holds for ECMP (routes do not move) with proportional sharing.
+    """
+
+    def disrupts(budget: float) -> bool:
+        trial = rescale(plan, budget)
+        report = evaluate_damage(topology, benign, trial, routing, config)
+        return report.benign_loss > config.disruption_level
+
+    if not disrupts(max_budget):
+        return math.inf
+    low, high = 0.0, max_budget
+    while high - low > relative_tolerance * high:
+        middle = (low + high) / 2
+        if disrupts(middle):
+            high = middle
+        else:
+            low = middle
+    return high

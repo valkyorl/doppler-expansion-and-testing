@@ -119,6 +119,10 @@ class DamageConfig:
     default; small flows are served in full first). Under max-min, attack
     flows larger than benign flows absorb all the loss, so on ANS no attack
     causes any benign loss at all.
+    ``disruption_level``: benign loss (share of benign demand) that counts as
+    "the attack begins to affect benign traffic" for the fifth §3.4 measure,
+    the budget needed to disrupt (decision D14). The default, one millionth,
+    is "any loss" while staying above numerical noise in the loss model.
     """
 
     tau_measure: str = "benign_loss"
@@ -127,6 +131,7 @@ class DamageConfig:
     congestion_threshold: float = 1.0
     zero_tolerance: float = 1e-9
     sharing: str = "proportional"
+    disruption_level: float = 1e-6
 
     def __post_init__(self) -> None:
         if self.sharing not in ("proportional", "max_min"):

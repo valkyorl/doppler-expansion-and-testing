@@ -16,20 +16,24 @@ Where each part of *Doppler-security-26* is implemented. Status is one of
 
 | Paper | Concept | Module / function | Status |
 |---|---|---|---|
-| §3.1.1, Eq. 2 | Minimum RTT per vantage-point pair | `recon/rtt_ricci.py` | planned (simulated RTTs) |
-| §3.1.1, Eq. 3 | Threshold graphs Ĝ_ε and ε sweep | `recon/rtt_ricci.py` | planned |
-| §3.1.1, Eq. 4 | Ollivier–Ricci ranking | `recon/rtt_ricci.py` | planned |
-| §3.1.2, Eq. 5 | Observed traceroute graph Ĝ_tr | `recon/traceroute.py` | planned (simulated probes) |
-| §3.1.2, Eq. 6 | Betweenness ranking B(e) | `recon/traceroute.py` | planned |
+| §3.1.1, Eq. 2 | Minimum RTT per vantage-point pair | `recon/rtt_ricci.RttMeasurements`; simulated by `rtt_ricci.simulate` (I11) | implemented (simulated RTTs; real data is a gap) |
+| §3.1.1, Eq. 3 | Threshold graphs Ĝ_ε and ε sweep | `rtt_ricci.epsilon_graph` (ε as an RTT quantile, D13); sweep in `experiments/recon_eval.py` | implemented |
+| §3.1.1, Eq. 4 | Ollivier–Ricci ranking | `rtt_ricci.ricci_curvature` (GraphRicciCurvature, P3/P8; unweighted, I10), `rtt_ricci.ricci_attack` | implemented |
+| §3.1.2, Eq. 5 | Observed traceroute graph Ĝ_tr | `traceroute.observed_graph` (silent hops break paths, D12); probes simulated by `traceroute.simulate` (I9) | implemented (simulated probes; real data is a gap) |
+| §3.1.2, Eq. 6 | Betweenness ranking B(e) | `recon/inferred.betweenness`, used by `traceroute.traceroute_attack` | implemented |
 | §3.2 | Oracle attacker | `recon/oracle.oracle_plan` (I3) | implemented |
 | §3.2 | No-knowledge attacker | `recon/random_plan.random_plan` | implemented |
 | §3.3, Eq. 8 | Equal split of budget R_A | `attack_plans.make_plan`; budget as a capacity multiple: `attack_plans.budget_from_capacity` (D4) | implemented |
-| §3.4 | Precision, recall, F1 | `recon/metrics.py` | planned |
-| §3.4, Eq. 9 | P@k, path-level critical-link recovery | `recon/metrics.py` | planned |
+| §3.3 | Pairs whose inferred paths cross the target | `recon/inferred.plan_from_ranking` (I8) | implemented |
+| §3.3 | Oracle rate allocation (minimum budget to overload a target; sensitivity experiment) | — | planned (not in Phase 2; see `PLAN.md` §9) |
+| §3.4 | Precision, recall, F1 | `metrics.topology_recovery` (refuses unvalidated ground truth; I12) | implemented |
+| §3.4, Eq. 9 | P@k, path-level critical-link recovery | `metrics.precision_at_k`, `metrics.path_level_recovery`; C_k from `oracle.rank_links` | implemented |
 | §3.4 | Attack-effectiveness measures (bullets 1 to 4) | `model.DamageReport`, `damage.evaluate_damage` (I1, I2) | implemented |
-| §3.4 | Budget needed for a given disruption (bullet 5) | `experiments/recon_eval.py` | planned (Phase 2) |
+| §3.4 | Budget needed for a given disruption (bullet 5) | `damage.budget_to_disrupt` (D14) | implemented |
 | §3.4, Eq. 10 | Normalized effectiveness η | `damage.relative_damage` (same ratio as τ) | implemented |
-| §3.5 | Real measurements on operational networks | loader interface in `recon/` | gap (no raw data) |
+| §3.5 | Real measurements on operational networks | loaders return `TracerouteObservation` / `RttMeasurements`; only the regional reconstruction loader exists (`rtt_ricci.load_regional_reconstruction`) | gap (no raw data) |
+| §3.7 | RQ1–RQ3 | `experiments/recon_eval.py` → `recon.csv`, `transferability.csv`; figures `figures/fig_rq1_recovery.py`, `fig_rq2_critical_links.py`, `fig_rq3_attack_impact.py` | implemented (simulated measurements) |
+| §3.5, Table 1 | Network summary | `figures/table_networks.py` (from `networks.csv`) | implemented |
 
 ## §4 Doppler
 

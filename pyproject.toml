@@ -26,6 +26,15 @@ testing = [
     "pytest",
     "pytest-cov",
 ]
+# Doppler 2026 experiment (doppler2026/): dependencies of GraphRicciCurvature
+# 0.6.1. The library itself pins scipy<=1.13.1, which has no Python 3.13 build
+# and which its code never imports, so it is installed separately with
+# `pip install --no-deps GraphRicciCurvature==0.6.1` (doppler2026/README.md).
+doppler2026 = [
+    "networkit>=11",
+    "pot>=0.9",
+    "python-louvain",
+]
 dev = [
     "ruff==0.8.0",
     "mypy==1.13.0",

@@ -51,3 +51,18 @@ def budget_from_capacity(multiple: float, capacity: float) -> float:
     if multiple <= 0:
         raise ValueError("multiple must be positive")
     return multiple * capacity
+
+
+def rescale(plan: AttackPlan, budget: float) -> AttackPlan:
+    """The same pairs and target with a different total budget, split equally (Eq. 8).
+
+    Every mechanism's choice of pairs does not depend on the budget, so a
+    budget sweep reuses one reconnaissance result instead of repeating it.
+    """
+    return make_plan(
+        [(f.source, f.target) for f in plan.flows],
+        budget,
+        mechanism=plan.mechanism,
+        topology_id=plan.topology_id,
+        target=plan.target,
+    )

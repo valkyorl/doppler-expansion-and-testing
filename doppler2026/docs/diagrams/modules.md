@@ -27,7 +27,12 @@ flowchart LR
             tr["traceroute.py"]
             rtt["rtt_ricci.py"]
             metrics["metrics.py"]
+            inferred["inferred.py"]
         end
+        subgraph exps["experiments/"]
+            recon_eval["recon_eval.py"]
+        end
+        results["results.py"]
     end
 
     subgraph shared["src/onset/ (existing)"]
@@ -49,6 +54,10 @@ flowchart LR
     transition --> wolf & routing
     recon --> plans & routing
     rtt --> grc
+    tr & rtt --> inferred
+    inferred --> plans
+    metrics --> oracle & routing
+    recon_eval --> recon & damage & traffic & results
     routing --> te
     traffic --> routing
     oracle & rnd & damage --> topo

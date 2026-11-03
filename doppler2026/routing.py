@@ -9,6 +9,7 @@ max-min fair sharing at congested links). Nothing is written to disk.
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from collections.abc import Iterable, Mapping
 from itertools import pairwise
 
@@ -39,13 +40,60 @@ def directed(topology: nx.Graph) -> nx.DiGraph:
     return graph
 
 
+TRAFFIC_INDEPENDENT = frozenset({"ecmp"})
+"""TE methods whose routes depend only on the graph, never on the demands."""
+
+_CACHE_SIZE = 64
+_route_cache: OrderedDict[tuple, dict[Pair, list[Route]]] = OrderedDict()
+
+
 def route(
     graph: nx.DiGraph, demands: Mapping[Pair, float], config: RoutingConfig
 ) -> dict[Pair, list[Route]]:
-    """Route ``demands`` on ``graph`` with the configured TE method."""
-    return route_demands(
-        graph, demands, config.te_method, config.path_budget, seed=config.seed
+    """Route ``demands`` on ``graph`` with the configured TE method.
+
+    For traffic-independent methods (ECMP) the routes of every node pair are
+    computed once per graph and reused: an experiment routes the same
+    topology hundreds of times, and route computation was most of its
+    running time. The result is the same as routing ``demands`` directly
+    (``tests/test_d26_recon.py`` checks this).
+    """
+    if config.te_method not in TRAFFIC_INDEPENDENT:
+        return route_demands(
+            graph, demands, config.te_method, config.path_budget, seed=config.seed
+        )
+    # Edge order is part of the key: with more equal-cost paths than the
+    # path budget, which paths are kept can depend on it.
+    key = (
+        config.te_method,
+        config.path_budget,
+        tuple(graph.nodes),
+        tuple((u, v, a.get("cost", 1.0)) for u, v, a in graph.edges(data=True)),
     )
+    routes = _route_cache.get(key)
+    if routes is None:
+        nodes = list(graph.nodes)
+        everything = {(s, d): 1.0 for s in nodes for d in nodes if s != d}
+        routes = route_demands(
+            graph, everything, config.te_method, config.path_budget, seed=config.seed
+        )
+        _route_cache[key] = routes
+        if len(_route_cache) > _CACHE_SIZE:
+            _route_cache.popitem(last=False)
+    else:
+        _route_cache.move_to_end(key)
+    # Same keys and order as the engine: every requested pair, sorted. Pairs
+    # outside the cache (a node routed to itself) go to the engine directly.
+    missing = {pair: amount for pair, amount in demands.items() if pair not in routes}
+    extra = (
+        route_demands(graph, missing, config.te_method, config.path_budget)
+        if missing
+        else {}
+    )
+    return {
+        pair: routes[pair] if pair in routes else extra[pair]
+        for pair in sorted(demands)
+    }
 
 
 def deliver(

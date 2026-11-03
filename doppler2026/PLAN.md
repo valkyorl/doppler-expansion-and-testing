@@ -6,7 +6,9 @@ and checking the experiment. Paper references use § and Eq. numbers. Audit
 references ("audit #n") point to items in
 `docs/knowledge/analysisResults/doppler-paper-vs-code.html`.
 
-Status: **Phase 1 complete (2026-10-30).** Next: Phase 2. See `CHANGES.md`.
+Status: **Phase 2 complete (2026-10-30).** Next: implement decision D15 (the oracle
+knows benign traffic; `docs/decisions.md`, flagged for review) and re-run
+Phase 2, then Phase 3. See `CHANGES.md`.
 
 ---
 
@@ -89,9 +91,10 @@ doppler2026/
   recon/
     oracle.py           oracle attacker (§3.2)
     random_plan.py      no-knowledge attacker (§3.2)
+    inferred.py         inferred graph + edge ranking -> plan (§3.3), shared
     traceroute.py       simulated traceroute + betweenness ranking (§3.1.2, Eq. 5–6)
     rtt_ricci.py        min-RTT graphs, ε sweep, Ollivier–Ricci ranking (§3.1.1, Eq. 2–4)
-    metrics.py          precision/recall/F1, P@k, η (§3.4, Eq. 9–10)
+    metrics.py          precision/recall/F1, P@k, path-level recovery (§3.4, Eq. 9)
   routing.py            in-memory TE wrapper around onset.te.engine
   damage.py             D(A, G), τ (Eq. 1), T(G′) (Eq. 21)
   feasibility.py        E* with fiber path + optical reach checks (§4.4)
@@ -103,7 +106,9 @@ doppler2026/
   controller.py         epoch loop, history h, attacker lag vs T_R (§4.14)
   traffic.py            benign gravity TMs for networks without them
   run.py                experiment entry point; writes CSV/JSON results
+  results.py            result folders, config.json with provenance, tidy CSVs (§10)
   experiments/          one script per paper evaluation (§7 below)
+  figures/              one script per paper figure/table, reading result files (§10)
   configs/              JSON configs per network/experiment
   tests/                unit + regression tests (with a conftest.py that
                         lets pytest import doppler2026)
@@ -160,8 +165,11 @@ cannot work correctly without it. All are listed in `CHANGES.md` when made.
    per-edge capacity.** An optional `edge_capacity` mapping on
    `OptimizationProblem`, used by the MILP's utilization rows when present
    (Eq. 15–16). With it absent, behavior is identical to today.
-4. **`pyproject.toml`: an optional extra** `doppler2026 =
-   ["GraphRicciCurvature==0.6.1"]`. Base dependencies are unchanged.
+4. **`pyproject.toml`: an optional extra** (done in Phase 2). It lists
+   GraphRicciCurvature's real dependencies (networkit, POT, python-louvain);
+   the library itself is installed with `--no-deps` because its SciPy pin
+   cannot be met on Python 3.13 (decision P8). Base dependencies are
+   unchanged.
 
 Not changed: `simulator.py`, `method_registry.py`, `handlers.py`,
 `attacker.py`, `scripts/Doppler/`, legacy Gurobi modules. The new controller
@@ -215,7 +223,7 @@ Each phase ends with something runnable and a check you can verify.
 
 | Script | Paper | Produces |
 |---|---|---|
-| `experiments/recon_eval.py` | §3.7 RQ1–RQ3 | Topology recovery, P@k, attack impact vs budget for oracle / random / traceroute / RTT-Ricci, ε sensitivity |
+| `experiments/recon_eval.py` | §3.7 RQ1–RQ3 | Topology recovery, P@k, attack impact vs budget for oracle / random / traceroute / RTT-Ricci, ε sensitivity, coverage. Built in Phase 2. Not yet included: the §3.3 sensitivity experiment with an oracle rate allocation (minimum budget to overload a target with capacity knowledge) |
 | `experiments/transferability.py` | §1, §4.2 G1 | τ of stale plans across Doppler epochs vs a static network and vs a structural-churn baseline (Eq. 18) |
 | `experiments/diversity.py` | §4.9 | Safe-pool size and pairwise τ clustering per network |
 | `experiments/cost.py` | §4.7, §4.13 | MLU, stretch, benign loss in steady state and during transitions |
@@ -256,7 +264,8 @@ them blocks Phases 0–3.
 | Real RTT / traceroute measurements | §3.5 | Recon modules read measurements through one loader interface; a simulator implements it. The existing regional Ricci reconstruction gets its own loader | Add a loader per real dataset; collection must follow §3.6 authorization rules | RQ1–RQ3 on operational networks |
 | Independent ground truth | §3.4 | RQ1 metrics refuse to run unless the ground-truth source is marked as independently validated in the config | Confirm provenance of the regional ground truth (audit #8) or obtain operator-validated topologies | RQ1 numbers only |
 | Optical data (ROADM, spectrum, transponder placement) | §4.4 | Feasibility = fiber path + reach, with a pluggable check for the rest (default: allowed, recorded as an assumption) | Add checks when optical data exists | Strength of G3 claims |
-| GraphRicciCurvature on Python 3.13 | §3.1.1 | Checked first in Phase 2 | If it does not install, you decide: older Python env, or a SciPy implementation of the same definition | Phase 2 |
+| ~~GraphRicciCurvature on Python 3.13~~ | §3.1.1 | Closed in Phase 2: installed with `--no-deps` (decision P8) | — | — |
+| Comcast in the reconnaissance evaluation | §3.5 | Excluded from the default network list: its origin is unknown (`docs/references.md`) and at 149 nodes a full run is much slower | Confirm its origin; run it on its own with `--networks Comcast` | Coverage of one more network |
 | Open parameter choices D1–D10 | various | Defaults proposed in §8 | Confirmed with you before the phase that needs each one | One phase each |
 
 **Paper-level risk.** The draft promises packet-level transition results. If

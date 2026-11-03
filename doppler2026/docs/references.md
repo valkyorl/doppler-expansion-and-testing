@@ -16,9 +16,9 @@ source), `to identify` (the right source is not yet known).
 
 | Input | Used for | Where (planned) | Cite | Status |
 |---|---|---|---|---|
-| Ollivier–Ricci curvature | Ranking inferred edges for the RTT attacker (Eq. 4) | `recon/rtt_ricci.py` | Y. Ollivier, "Ricci curvature of Markov chains on metric spaces", *Journal of Functional Analysis*, 2009 | unverified |
-| RTT-based topology inference with Ricci curvature | The RTT attacker's overall method (§3.1.1); the paper cites it as "prior work [?]" | `recon/rtt_ricci.py` | Ask the authors which work the draft's [?] refers to. One candidate: L. Salamatian et al., "Curvature-based analysis of network connectivity in private backbone infrastructures", ACM SIGMETRICS 2022 | to identify |
-| Shortest-path (edge) betweenness | Traceroute attacker ranking (Eq. 6); local candidate set | `recon/traceroute.py`, `candidates.py` | L. C. Freeman, "A set of measures of centrality based on betweenness", *Sociometry*, 1977. Algorithm used by NetworkX: U. Brandes, "A faster algorithm for betweenness centrality", *Journal of Mathematical Sociology*, 2001 | unverified |
+| Ollivier–Ricci curvature | Ranking inferred edges for the RTT attacker (Eq. 4) | `recon/rtt_ricci.ricci_curvature` (in use) | Y. Ollivier, "Ricci curvature of Markov chains on metric spaces", *Journal of Functional Analysis*, 2009 | unverified |
+| RTT-based topology inference with Ricci curvature | The RTT attacker's overall method (§3.1.1); the paper cites it as "prior work [?]". Our ε-as-quantile (D13) and unweighted curvature (I10) should be checked against it once identified | `recon/rtt_ricci.py` (in use) | Ask the authors which work the draft's [?] refers to. One candidate: L. Salamatian et al., "Curvature-based analysis of network connectivity in private backbone infrastructures", ACM SIGMETRICS 2022 | to identify |
+| Shortest-path (edge) betweenness | Traceroute attacker ranking (Eq. 6), via `nx.edge_betweenness_centrality_subset`; local candidate set (Phase 3) | `recon/inferred.betweenness` (in use), `candidates.py` | L. C. Freeman, "A set of measures of centrality based on betweenness", *Sociometry*, 1977. Algorithm used by NetworkX: U. Brandes, "A faster algorithm for betweenness centrality", *Journal of Mathematical Sociology*, 2001 | unverified |
 | k-shortest simple paths (Yen's algorithm) | Tunnel computation in preprocessing (`nx.shortest_simple_paths`) | `src/onset/preprocessing.py` (reused) | J. Y. Yen, "Finding the k shortest loopless paths in a network", *Management Science*, 1971 | unverified |
 | Multi-commodity flow MILP for topology selection | Candidate pool generation (Eq. 11–16) | `candidates.py` via `src/onset/open_doppler.py` | Standard formulation; cite the authors' own earlier Doppler/ONSET papers for the lineage (to identify) | to identify |
 | No-good (canonical) cuts | Enumerating distinct candidate topologies | `candidates.py` | E. Balas and R. Jeroslow, "Canonical cuts on the unit hypercube", *SIAM Journal on Applied Mathematics*, 1972 | unverified |
@@ -32,7 +32,12 @@ source), `to identify` (the right source is not yet known).
 | SMORE semi-oblivious TE | Optional TE method | `routing.py` via `src/onset/te/engine.py` | P. Kumar et al., "Semi-oblivious traffic engineering: the road not taken", USENIX NSDI 2018 | unverified |
 | Räcke oblivious routing / FRT tree embedding | Inside SMORE | `src/onset/te/engine.py` (reused) | H. Räcke, "Optimal hierarchical decompositions for congestion minimization in networks", ACM STOC 2008; J. Fakcharoenphol, S. Rao, K. Talwar, "A tight bound on approximating arbitrary metrics by tree metrics", ACM STOC 2003 | unverified |
 | YATES-compatible hop-by-hop loss model | Not used by the experiment (it uses `deliver_flows`); listed because `evaluate()` claims YATES parity | `onset.te.evaluate` | P. Kumar et al., "YATES: Rapid prototyping for traffic engineering systems", ACM SOSR 2018 | unverified |
-| Haversine great-circle distance | Optical reach, propagation delay for simulated RTT, latency stretch | `feasibility.py`, `recon/rtt_ricci.py`, `filters.py` | Standard formula; no citation needed | — |
+| Haversine great-circle distance | Propagation delay for simulated RTT (in use, `topology.great_circle_km` via `onset.utilities.reconfiguration.calc_haversine`); later optical reach and latency stretch | `topology.py`, `feasibility.py`, `filters.py` | Standard formula; no citation needed | — |
+| Paris traceroute (fixed flow identifier, so a probe follows one ECMP path) | How simulated traceroute picks one path per probe (I9) | `recon/traceroute.simulate` (in use) | B. Augustin et al., "Avoiding traceroute anomalies with Paris traceroute", ACM IMC 2006 | unverified |
+| Anonymous / non-responding routers in traceroute | Why silent hops exist and why they break paths (D12) | `recon/traceroute.py` (in use) | A standard reference on anonymous routers in topology inference (e.g. B. Yao et al., "Topology inference in the presence of anonymous routers", IEEE INFOCOM 2003) | to identify |
+| Speed of light in fiber, about 2/3 c (200 km/ms) | Propagation delay of simulated RTTs (I11) | `recon/rtt_ricci.RttConfig.fiber_km_per_ms` (in use) | Physical constant (refractive index ≈ 1.5); no citation needed | — |
+| Exponential queuing delay per probe | Noise in simulated RTTs, removed by the minimum (Eq. 2; I11) | `recon/rtt_ricci.simulate` (in use) | Modelling assumption, not from a source; a measurement study of RTT distributions could justify it | to identify |
+| Bisection search | Budget needed to disrupt (§3.4 bullet 5, D14) | `damage.budget_to_disrupt` (in use) | Standard numerical method; no citation needed | — |
 | Coremelt link-flooding attack | Attack model background (§2.1) | `attack_plans.py` | A. Studer and A. Perrig, "The Coremelt attack", ESORICS 2009 | unverified |
 | Crossfire link-flooding attack | Attack model background (§2.1) | `attack_plans.py` | M. S. Kang, S. B. Lee, V. D. Gligor, "The Crossfire attack", IEEE S&P 2013 | unverified |
 
@@ -40,7 +45,10 @@ source), `to identify` (the right source is not yet known).
 
 | Software | Used for | Cite | Status |
 |---|---|---|---|
-| GraphRicciCurvature 0.6.1 | Ollivier–Ricci computation | C.-C. Ni et al., "Community detection on networks with Ricci flow", *Scientific Reports*, 2019 (the library's recommended citation; confirm in its README) | unverified |
+| GraphRicciCurvature 0.6.1 (installed with `--no-deps`, P8) | Ollivier–Ricci computation (in use, `recon/rtt_ricci.py`) | C.-C. Ni et al., "Community detection on networks with Ricci flow", *Scientific Reports*, 2019 (the library's recommended citation; confirm in its README) | unverified |
+| POT (Python Optimal Transport) 0.9.7 | Exact earth mover's distance inside GraphRicciCurvature | R. Flamary et al., "POT: Python Optimal Transport", *Journal of Machine Learning Research*, 2021 | unverified |
+| NetworKit 11.2 | Shortest paths inside GraphRicciCurvature | C. L. Staudt, A. Sazonovs, H. Meyerhenke, "NetworKit: A tool suite for large-scale complex network analysis", *Network Science*, 2016 | unverified |
+| python-louvain 0.16 | Required by GraphRicciCurvature's import; its community detection is not used | Not cited (not used) | — |
 | HiGHS / highspy | Solving the MILP and LPs | Q. Huangfu and J. A. J. Hall, "Parallelizing the dual revised simplex method", *Mathematical Programming Computation*, 2018 | unverified |
 | NetworkX | Graphs, shortest paths (ECMP via `all_shortest_paths`), GML loading | A. Hagberg, D. Schult, P. Swart, "Exploring network structure, dynamics, and function using NetworkX", SciPy Conference 2008 | unverified |
 | SciPy | Sparse matrices, MCF LP in the TE engine | P. Virtanen et al., "SciPy 1.0: fundamental algorithms for scientific computing in Python", *Nature Methods*, 2020 | unverified |
@@ -51,7 +59,7 @@ source), `to identify` (the right source is not yet known).
 
 | Dataset | Used for | Source / cite | Status |
 |---|---|---|---|
-| ANS, CRL, bellCanada, sprint, surfNet topologies (`data/graphs/gml/`) | Simulated experiments; ANS in the Phase 1 check (`topology.load_topology`) | Internet Topology Zoo: each file's `Creator` field reads "Topology Zoo Toolset" (origin checked 2026-10-30). Cite S. Knight et al., "The Internet Topology Zoo", *IEEE JSAC*, 2011 | origin verified; citation unverified |
+| ANS, CRL, bellCanada, sprint, surfNet topologies (`data/graphs/gml/`) | Simulated experiments: Phase 1 check (ANS), reconnaissance evaluation (all five) | Internet Topology Zoo: each file's `Creator` field reads "Topology Zoo Toolset" (origin checked 2026-10-30). Cite S. Knight et al., "The Internet Topology Zoo", *IEEE JSAC*, 2011 | origin verified; citation unverified |
 | Comcast topology (`data/graphs/gml/Comcast.gml`) | Not used yet | No `Creator` field; origin unknown | to identify |
-| Regional ground truth and Ricci reconstruction (`data/graphs/json/regional/`) | RTT attacker, RQ1–RQ2 | Provenance unknown; possibly router-proxy derived (audit #8). Must be confirmed before use as ground truth (§3.4) | to identify |
+| Regional ground truth and Ricci reconstruction (`data/graphs/json/regional/`) | RTT attacker on a stored reconstruction (in use, `rtt_ricci.load_regional_*`); RQ2/RQ3 rows flagged not independent; RQ1 refused (I12). Files hold only edge lists (12 nodes; 18 true and 53 inferred edges) and capacities in unknown units | Provenance unknown; possibly router-proxy derived (audit #8). Must be confirmed before use as ground truth (§3.4) | to identify |
 | GRNOC router-proxy output (`data/NOC/`) | Not used as ground truth | GlobalNOC router proxy; collected under the authorization rules of §3.6 (to confirm) | to identify |

@@ -22,9 +22,14 @@ How it chooses (interpretation I3 in ``docs/decisions.md``):
 
 Benign load is not used: the paper's oracle knows topology and routing
 state, not the traffic matrix.
+
+The full ranking (``rank_links``) is also the ground truth for critical-link
+recovery: its top k links are C_k in P@k (Eq. 9; ``recon/metrics.py``).
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass
 
 import networkx as nx
 
@@ -36,28 +41,37 @@ from ..topology import topology_id as compute_topology_id
 MECHANISM = "oracle"
 
 
-def oracle_plan(
-    topology: nx.Graph,
-    attack: AttackConfig,
-    routing: RoutingConfig,
-    *,
-    topology_id: str | None = None,
-) -> AttackPlan:
-    """Build the oracle's attack plan for ``topology``.
+@dataclass(frozen=True)
+class LinkScore:
+    """One directed physical link in the oracle's ranking.
 
-    ``topology_id`` defaults to the topology's stable hash.
+    ``key`` is (concentrated attack traffic, usage, number of pairs,
+    -capacity); higher is a better target. ``pairs`` are the pairs the
+    oracle would use against this link.
+    """
+
+    link: Pair
+    key: tuple[float, float, int, float]
+    pairs: tuple[Pair, ...]
+
+
+def rank_links(
+    topology: nx.Graph, attack: AttackConfig, routing: RoutingConfig
+) -> list[LinkScore]:
+    """Every directed link that carries endpoint traffic, best target first.
+
+    Ties on the whole key go to the alphabetically first link, so the
+    ranking is deterministic. The order does not depend on the budget
+    (the score is proportional to it), only on ``attack.n_pairs`` and
+    ``attack.endpoints``.
     """
     graph = directed(topology)
     endpoints = attack.endpoints or tuple(sorted(topology.nodes))
     routes = all_pair_routes(graph, endpoints, routing)
     shares = link_shares(routes)
 
-    best_key: tuple[float, int, float] | None = None
-    best_link: Pair | None = None
-    best_pairs: list[Pair] = []
-    # Links are visited in name order and replaced only by a strictly better
-    # key, so on a full tie the alphabetically first link wins.
-    for link in sorted(shares):
+    scores = []
+    for link in shares:
         # Pairs with the largest share on this link; name order breaks ties.
         ranked = sorted(shares[link].items(), key=lambda item: (-item[1], item[0]))
         chosen = ranked[: attack.n_pairs]
@@ -67,19 +81,33 @@ def oracle_plan(
         # budget, so this decides between them.
         usage = sum(shares[link].values())
         capacity = graph.edges[link]["capacity"]
-        # Higher score wins, then higher usage, then more pairs, then lower
-        # capacity.
         key = (concentrated, usage, len(chosen), -capacity)
-        if best_key is None or key > best_key:
-            best_key, best_link = key, link
-            best_pairs = [pair for pair, _ in chosen]
+        scores.append(LinkScore(link, key, tuple(pair for pair, _ in chosen)))
+    # Higher score first, then higher usage, more pairs, lower capacity, and
+    # finally link name.
+    scores.sort(key=lambda s: (tuple(-k for k in s.key), s.link))
+    return scores
 
-    if best_link is None:
+
+def oracle_plan(
+    topology: nx.Graph,
+    attack: AttackConfig,
+    routing: RoutingConfig,
+    *,
+    topology_id: str | None = None,
+) -> AttackPlan:
+    """Build the oracle's attack plan for ``topology``: attack its top link.
+
+    ``topology_id`` defaults to the topology's stable hash.
+    """
+    ranking = rank_links(topology, attack, routing)
+    if not ranking:
         raise ValueError("No link carries traffic between attacker endpoints")
+    best = ranking[0]
     return make_plan(
-        best_pairs,
+        best.pairs,
         attack.budget,
         mechanism=MECHANISM,
         topology_id=topology_id or compute_topology_id(topology),
-        target=best_link,
+        target=best.link,
     )

@@ -18,6 +18,7 @@ from pathlib import Path
 import networkx as nx
 
 from onset.base_types import compute_stable_topology_id
+from onset.utilities.reconfiguration import calc_haversine
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GML_DIR = REPO_ROOT / "data" / "graphs" / "gml"
@@ -44,6 +45,16 @@ def load_topology(
             graph.edges[u, v]["capacity"] = float(default_capacity)
     graph.graph["name"] = name
     return graph
+
+
+def great_circle_km(topology: nx.Graph, u: str, v: str) -> float:
+    """Great-circle (haversine) distance between PoPs ``u`` and ``v`` in km.
+
+    Uses the nodes' ``Latitude``/``Longitude``. Real fiber is longer than the
+    great circle; callers that need fiber length scale this up.
+    """
+    a, b = topology.nodes[u], topology.nodes[v]
+    return calc_haversine(a["Latitude"], a["Longitude"], b["Latitude"], b["Longitude"])
 
 
 def topology_id(graph: nx.Graph) -> str:

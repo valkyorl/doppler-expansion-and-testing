@@ -4,6 +4,133 @@ Every file created or changed for the Doppler 2026 experiment, inside or
 outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first.
 
+## 2026-11-03: Decision D15, the oracle knows benign traffic (resolves O1)
+
+- `docs/decisions.md`: added D15 (option (b) for open issue O1, decided by
+  the user), marked O1 resolved, and added "Choices flagged for review",
+  which lists what changing D15 later would cost.
+- No code has changed yet. Before Phase 3: add the
+  `AttackConfig.oracle_knowledge` setting, implement the benign-aware
+  oracle, save both oracles' fresh-plan damage per (plan, topology) pair, and
+  re-run the Phase 2 reconnaissance experiment.
+
+## 2026-10-30: Phase 2 (reconnaissance) — complete
+
+### Full run and figures
+
+- Run `data/results/doppler2026/recon_eval/phase2-2026-10-30/` (local;
+  `data/` is git-ignored): five Topology Zoo networks plus the regional
+  network, 12 minutes (bellCanada and surfNet about 5 minutes each).
+- Figures and tables are in `figures/out/` (PDF, PNG, Markdown, LaTeX), made
+  by `table_networks`, `fig_rq1_recovery`, `fig_rq2_critical_links` and
+  `fig_rq3_attack_impact`. After a first look, legends were moved above the
+  panels (they covered titles) and budget ticks show 0.25 … 4.
+- Results at a glance (headline settings: full coverage, 10% silent
+  routers, ε at the 0.2 quantile):
+  - **RQ1:** traceroute F1 = 1.0 on every network at full coverage, and
+    0.82–0.95 at 25% coverage with 30% silent routers. RTT/Ricci F1 is
+    0.38–0.64 and falls sharply with coverage (≤ 0.17 at 25%).
+  - **RQ2:** traceroute P@k = 1 on four networks but 0–0.7 on sprint. RTT
+    P@k is mostly low (0–0.67); path-level recovery is higher (up to 0.8).
+  - **RQ3:** every measured attacker beats no knowledge. The budget needed
+    to disrupt is 0.5–0.98× link capacity for traceroute, 0.61–1.89× for
+    RTT/Ricci, and 2–3.75× for random plans. Traceroute matches the oracle
+    (η = 1) on four of five networks.
+  - **O1 confirmed:** 15% of non-oracle plans at R_A = 2× have η > 1 (up to
+    4.75), and at 4× the worst random plans exceed the oracle on several
+    networks. The oracle as defined in §3.2 is not an upper bound.
+
+### Still open
+
+- **Open issue O1 needs a decision before Phase 3** (`docs/decisions.md`).
+- Interpretations I7–I12 need confirmation.
+- Comcast is not in the run (PLAN §9). The §3.3 oracle-rate-allocation
+  sensitivity experiment is not built (PLAN §7).
+- The dataviz palette validator could not be run (Node.js is not
+  installed). The four colors are the reference palette's first four slots,
+  and every series also has its own marker and line style.
+- Later idea (user): whether a Gurobi license speeds up the Phase 3 MILP.
+
+### Decisions
+
+- P8: install GraphRicciCurvature with `--no-deps`. Its `scipy<=1.13.1` pin
+  needs Python ≤ 3.12, and the library never imports SciPy.
+- D12 silent traceroute hops break the path; D13 ε as an RTT quantile; D14
+  budget to disrupt = the smallest budget that causes any benign loss.
+- Interpretations I7–I12 and open issue O1 added (need confirmation).
+
+### Changes outside this folder
+
+- **`pyproject.toml`:** new optional extra `doppler2026` (networkit, POT,
+  python-louvain), which is PLAN §5 item 4 in a changed form (P8).
+  Base dependencies are unchanged.
+- **`.venv`:** installed networkit 11.2.2, POT 0.9.7, python-louvain 0.16,
+  and GraphRicciCurvature 0.6.1 (no-deps). SciPy stays at 1.18.1.
+
+### New and changed files in this folder
+
+- **`recon/inferred.py` (new):** the shared §3.3 step: inferred graph + edge
+  ranking → plan (I8); shortest-path counts; Eq. 6 betweenness.
+- **`recon/traceroute.py` (new):** simulated probes (I9), Ĝ_tr (Eq. 5, D12),
+  betweenness ranking (Eq. 6), path statistics (§3.5).
+- **`recon/rtt_ricci.py` (new):** simulated minimum RTTs (Eq. 2, I11), Ĝ_ε
+  (Eq. 3, D13), Ollivier–Ricci ranking (Eq. 4, I10), loaders for the
+  regional reconstruction and ground truth. Curvature runs in-process (see
+  "Fork fix" below).
+- **`recon/metrics.py` (new):** precision/recall/F1 (refused unless ground
+  truth is independent, I12), P@k (Eq. 9), path-level recovery.
+- **`recon/oracle.py` (changed):** ranking split out as `rank_links` (the true
+  critical links C_k). Plan choice is unchanged; the Phase 1 tests pass.
+- **`damage.py` (changed):** `budget_to_disrupt` (§3.4 bullet 5, D14).
+- **`model.py` (changed):** `DamageConfig.disruption_level`.
+- **`attack_plans.py` (changed):** `rescale` (same pairs, new budget).
+- **`topology.py` (changed):** `great_circle_km`.
+- **`routing.py` (changed):** caches ECMP routes per graph. ECMP was about 2/3
+  of running time. Results are identical: checked by a test and by
+  comparing two full smoke runs, whose numbers matched exactly.
+- **`results.py` (new):** run folders, `config.json` with git commit and
+  package versions, tidy CSVs (PLAN §10).
+- **`experiments/recon_eval.py` (new):** RQ1–RQ3 on the five Topology Zoo
+  networks plus the regional network. It writes `networks.csv`,
+  `recon.csv` and `transferability.csv`. Comcast is not in the default list.
+- **`figures/` (new):** `common.py` and scripts for Table 1, RQ1, RQ2, RQ3.
+- **Tests (new):** `tests/test_d26_recon.py` and
+  `tests/test_d26_phase2_networks.py`, 24 tests, including curvature values
+  computed by hand (dumbbell bridge κ = −1/3, 4-cycle κ = 1/2).
+- **Docs:** README (install steps, experiment), PLAN (status, layout, §5,
+  §7, §9), `docs/decisions.md`, `docs/paper_map.md`, `docs/references.md`,
+  `docs/diagrams/modules.md`, `recon/__init__.py`.
+
+### Fork fix (found while finishing Phase 2)
+
+- **Problem:** GraphRicciCurvature always forks a process pool, even with
+  `proc=1`. The full test suite showed that HiGHS (the TE engine's MCF and
+  the MILP) leaves worker threads behind, and Phase 3 will run HiGHS and
+  Ricci in one process. Forking a process with threads running can deadlock
+  the child. Limiting networkit to one thread, the first workaround, cannot
+  stop other libraries' threads.
+- **Fix (`recon/rtt_ricci.py`):** while curvature is computed, the
+  library's `multiprocessing` is swapped for a stand-in that runs the
+  library's own per-edge function in this process. Its algorithm is not
+  changed. The library memoizes per-node results by node index, which only
+  worked because the memo lived in short-lived children; the memo is now
+  cleared before and after every call. Otherwise the second graph would
+  reuse the first graph's neighbours: tests crashed with an IndexError until
+  this was added, and without a crash it could have given wrong curvature.
+- **Tests:** in-process curvature equals the library's pooled run, even after
+  other graphs were computed; and no process pool is started. The full suite
+  no longer shows the fork warning, except in the one test that runs the
+  library's pool on purpose as the reference.
+
+### Checks so far
+
+- `pytest tests doppler2026/tests`: 224 passed. Ruff is clean.
+- Smoke run (ANS, sprint, regional): measured attackers beat random. At
+  full coverage traceroute recovers the topology exactly (F1 = 1.0); RTT
+  F1 is about 0.55. Mean P@5 is 0.68 for traceroute and 0.07 for RTT on
+  ANS. The oracle needs 0.86× link capacity to disrupt ANS; random plans
+  need about 3×.
+
 ## 2026-10-30: Phase 1 (attack plans and damage)
 
 ### Decisions
