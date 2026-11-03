@@ -7,8 +7,10 @@ drawn as their mean with a band from the least to the most damaging seed;
 measured attackers are means over measurement seeds.
 
 Table: η (Eq. 10) at twice the link capacity, and the budget needed to
-disrupt benign traffic (§3.4 bullet 5, D14), median over plans. η can exceed
-1 because the paper's oracle does not know benign traffic (open issue O1).
+disrupt benign traffic (§3.4 bullet 5, D14), median over plans. η is shown
+against both oracles: the reference chosen by decision D15 (``ratio``) and
+the other one (``other_ratio``). Against the paper's oracle, η can exceed 1
+because that oracle does not know benign traffic (open issue O1).
 
     python -m doppler2026.figures.fig_rq3_attack_impact [--run <folder>]
 """
@@ -83,18 +85,22 @@ def main() -> None:
     legend_above(fig, axes[0][0])
     save(fig, "rq3_attack_impact", run_dir)
 
-    eta = (
-        transfer[transfer.budget_multiple == ETA_BUDGET]
-        .groupby(["network", "mechanism"])["ratio"]
-        .median()
-    )
+    at_eta_budget = transfer[transfer.budget_multiple == ETA_BUDGET]
+    (reference,) = at_eta_budget.oracle_knowledge.unique()
+    (other,) = at_eta_budget.other_oracle_knowledge.unique()
+    by_plan = at_eta_budget.groupby(["network", "mechanism"])
+    eta, eta_other = by_plan["ratio"].median(), by_plan["other_ratio"].median()
     disrupt = (
         recon[recon.metric == "budget_to_disrupt"]
         .groupby(["network", "mechanism"])["value"]
         .median()
     )
     table = pd.DataFrame(
-        {"eta_at_2x": eta.round(2), "budget_to_disrupt": disrupt.round(2)}
+        {
+            "eta": eta.round(2),
+            "eta_other": eta_other.round(2),
+            "budget_to_disrupt": disrupt.round(2),
+        }
     )
     table = table.reset_index()
     table["network"] = pd.Categorical(table.network, networks, ordered=True)
@@ -104,13 +110,16 @@ def main() -> None:
     save_table(
         table.rename(
             columns={
-                "eta_at_2x": "η at R_A = 2x",
+                "eta": f"η vs oracle ({reference})",
+                "eta_other": f"η vs oracle ({other})",
                 "budget_to_disrupt": "Budget to disrupt (x capacity)",
             }
         ),
         "rq3_attack_effectiveness",
-        "RQ3. Median η at R_A = 2x link capacity, and median budget at which benign "
-        "loss begins (inf: not reached by 16x). Headline settings.",
+        f"RQ3. Median η at R_A = 2x link capacity against the reference oracle "
+        f"({reference}, decision D15) and the other oracle ({other}), and median "
+        "budget at which benign loss begins (inf: not reached by 16x). "
+        "Headline settings.",
     )
 
 

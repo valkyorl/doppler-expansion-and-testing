@@ -1,8 +1,10 @@
 """Reconnaissance evaluation: RQ1-RQ3 of paper §3.7.
 
-For every network, four attackers build attack plans and are compared:
+For every network, five attackers build attack plans and are compared:
 
-- oracle (§3.2): true topology and routing; the reference for η;
+- oracle_benign (decision D15): true topology, routing, and benign
+  traffic; the reference for η by default (``oracle_knowledge``);
+- oracle (§3.2): the paper's oracle, true topology and routing only;
 - random (§3.2): no knowledge, ``random_seeds`` plans;
 - traceroute (§3.1.2): simulated probes, swept over the non-response rate
   and the share of PoPs used as vantage points (measurement coverage);
@@ -15,7 +17,13 @@ For each plan it records:
   independent (``recon/metrics.py``);
 - RQ2, P@k and path-level recovery against the oracle's critical links;
 - RQ3, damage and η against the oracle at every budget in the sweep, plus
-  the budget needed to disrupt benign traffic (§3.4, D14).
+  the budget needed to disrupt benign traffic (§3.4, D14). η against the
+  other oracle is saved too (``other_ratio``), so D15 can be revisited
+  without re-running.
+
+Both oracles are rebuilt at every budget in the sweep (their plans are the
+fresh plans A*), so each oracle's own η is 1 by construction. Every other
+plan keeps its pairs and has its budget rescaled.
 
 The regional network is evaluated too: its stored Ricci reconstruction is
 ranked by curvature and tested against its "ground truth" graph. That graph
@@ -50,7 +58,7 @@ from ..damage import budget_to_disrupt, relative_damage
 from ..model import AttackConfig, AttackPlan, DamageConfig, RoutingConfig
 from ..recon import metrics, rtt_ricci, traceroute
 from ..recon.inferred import ReconResult
-from ..recon.oracle import oracle_plan
+from ..recon.oracle import BENIGN_MECHANISM, MECHANISM, fresh_oracle_plan
 from ..recon.random_plan import random_plan
 from ..results import new_run_dir, write_config, write_csv
 from ..topology import DEFAULT_CAPACITY, load_topology, topology_id
@@ -82,6 +90,8 @@ class ReconEvalConfig:
     epsilon_quantiles: tuple[float, ...] = (0.05, 0.1, 0.2, 0.3, 0.5)
     rtt: rtt_ricci.RttConfig = field(default_factory=rtt_ricci.RttConfig)
     k_values: tuple[int, ...] = (1, 3, 5, 10)
+    oracle_knowledge: str = "benign"
+    """Which oracle is the reference for η (decision D15, flagged for review)."""
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     damage: DamageConfig = field(default_factory=DamageConfig)
 
@@ -153,7 +163,17 @@ def attempts(
     """Every attacker run for one network, at the reference budget ``attack.budget``."""
     topology, routing = network.topology, config.routing
     tid = topology_id(topology)
-    yield Attempt("oracle", oracle_plan(topology, attack, routing, topology_id=tid), {})
+    for mechanism, knowledge in ((BENIGN_MECHANISM, "benign"), (MECHANISM, "routing")):
+        plan = fresh_oracle_plan(
+            topology,
+            network.benign,
+            attack,
+            routing,
+            config.damage,
+            knowledge=knowledge,
+            topology_id=tid,
+        )
+        yield Attempt(mechanism, plan, {})
     for seed in range(config.random_seeds):
         yield Attempt(
             "random",
@@ -162,7 +182,8 @@ def attempts(
         )
 
     if network.name == "regional":
-        # Only the stored reconstruction exists: no measurements to simulate.
+        # Only the stored reconstruction exists: no measurements to simulate
+        # (interpretation I13).
         recon = rtt_ricci.ricci_attack(
             rtt_ricci.load_regional_reconstruction(),
             attack,
@@ -219,12 +240,34 @@ def evaluate_network(
     routing, damage = config.routing, config.damage
     topology = network.topology
     capacity = network.reference_capacity
-    attack = AttackConfig(budget=capacity, n_pairs=config.n_pairs)
+    attack = AttackConfig(
+        budget=capacity,
+        n_pairs=config.n_pairs,
+        oracle_knowledge=config.oracle_knowledge,
+    )
     critical = metrics.critical_links(topology, attack, routing, max(config.k_values))
+    tid = topology_id(topology)
+    # Both oracles' fresh plans at every budget: {mechanism: {multiple: plan}}.
     fresh = {
-        m: oracle_plan(topology, replace(attack, budget=m * capacity), routing)
-        for m in config.budget_multiples
+        mechanism: {
+            m: fresh_oracle_plan(
+                topology,
+                network.benign,
+                replace(attack, budget=m * capacity),
+                routing,
+                damage,
+                knowledge=knowledge,
+                topology_id=tid,
+            )
+            for m in config.budget_multiples
+        }
+        for mechanism, knowledge in (
+            (BENIGN_MECHANISM, "benign"),
+            (MECHANISM, "routing"),
+        )
     }
+    reference = BENIGN_MECHANISM if config.oracle_knowledge == "benign" else MECHANISM
+    (other,) = set(fresh) - {reference}
     common = {
         "network": network.name,
         "ground_truth_source": network.truth.source,
@@ -285,7 +328,11 @@ def evaluate_network(
         )
 
         for multiple in config.budget_multiples:
-            plan = rescale(attempt.plan, multiple * capacity)
+            if attempt.mechanism in fresh:
+                # An oracle re-plans at every budget.
+                plan = fresh[attempt.mechanism][multiple]
+            else:
+                plan = rescale(attempt.plan, multiple * capacity)
             result = relative_damage(
                 plan,
                 topology,
@@ -293,13 +340,14 @@ def evaluate_network(
                 replace(attack, budget=plan.budget),
                 routing,
                 damage,
-                fresh_plan=fresh[multiple],
+                fresh_plan=fresh[reference][multiple],
+                other_fresh_plan=fresh[other][multiple],
             )
             transfer_rows.append(
                 {
                     **label,
                     "budget_multiple": multiple,
-                    "plan_target": attempt.plan.target,
+                    "plan_target": plan.target,
                     "plan_pairs": len(plan.flows),
                     **result.as_row(),
                 }

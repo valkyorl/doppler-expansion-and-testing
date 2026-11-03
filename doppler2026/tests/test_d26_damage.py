@@ -1,14 +1,16 @@
 """Tests for damage D(A, G) and the τ/η ratio on hand-checkable topologies."""
 
 import math
+from dataclasses import replace
 
+import networkx as nx
 import pytest
 from helpers import dumbbell, line
 
 from doppler2026.attack_plans import make_plan
 from doppler2026.damage import evaluate_damage, relative_damage
 from doppler2026.model import AttackConfig, DamageConfig, RoutingConfig
-from doppler2026.recon.oracle import oracle_plan
+from doppler2026.recon.oracle import benign_oracle_plan, oracle_plan
 
 ROUTING = RoutingConfig()
 
@@ -106,3 +108,59 @@ def test_as_row_contains_both_reports():
         plan, graph, _uniform(graph, 5.0), attack, ROUTING, DamageConfig()
     ).as_row()
     assert {"ratio", "plan_benign_loss", "fresh_benign_loss"} <= row.keys()
+
+
+def _path3():
+    """x - y - z, both links 100. Benign traffic flows only z -> y."""
+    graph = nx.Graph()
+    graph.add_edge("x", "y", capacity=100.0)
+    graph.add_edge("y", "z", capacity=100.0)
+    return graph, {("z", "y"): 80.0}
+
+
+def test_benign_oracle_targets_the_link_carrying_benign_traffic():
+    """D15. Every link can absorb the whole one-pair attack, so the paper's
+    oracle picks by tie-break (x -> y, first by name), where there is no
+    benign traffic. The benign-aware oracle picks z -> y: 180 offered on 100,
+    so benign keeps 100/180 and loses 80/180 of its demand."""
+    graph, benign = _path3()
+    attack = AttackConfig(budget=100.0, n_pairs=1)
+    assert oracle_plan(graph, attack, ROUTING).target == ("x", "y")
+    plan = benign_oracle_plan(graph, benign, attack, ROUTING, DamageConfig())
+    assert plan.target == ("z", "y")
+    assert plan.mechanism == "oracle_benign"
+    report = evaluate_damage(graph, benign, plan, ROUTING, DamageConfig())
+    assert report.benign_loss == pytest.approx(80 / 180)
+
+
+def test_relative_damage_records_both_oracles():
+    """The ratio uses the oracle chosen by D15; the other one is saved too."""
+    graph, benign = _path3()
+    attack = AttackConfig(budget=100.0, n_pairs=1)
+    benign_aware = benign_oracle_plan(graph, benign, attack, ROUTING, DamageConfig())
+
+    default = relative_damage(
+        benign_aware, graph, benign, attack, ROUTING, DamageConfig()
+    )
+    assert default.oracle_knowledge == "benign"
+    assert default.ratio == pytest.approx(1.0)
+    # The paper's oracle does no benign damage here: immune under D2.
+    assert default.other_oracle_knowledge == "routing"
+    assert default.other_attack_immune and default.other_ratio == 0.0
+
+    paper = relative_damage(
+        benign_aware,
+        graph,
+        benign,
+        replace(attack, oracle_knowledge="routing"),
+        ROUTING,
+        DamageConfig(),
+    )
+    assert paper.attack_immune and paper.other_ratio == pytest.approx(1.0)
+    row = default.as_row()
+    assert {"other_ratio", "other_denominator", "other_fresh_benign_loss"} <= row.keys()
+
+
+def test_unknown_oracle_knowledge_is_refused():
+    with pytest.raises(ValueError, match="oracle_knowledge"):
+        AttackConfig(budget=1.0, oracle_knowledge="traffic")

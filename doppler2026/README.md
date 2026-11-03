@@ -5,7 +5,7 @@ This folder implements the experiment for the draft paper
 optical network so that link-flooding attack plans learned on earlier
 topologies stop working, while benign traffic is still carried safely.
 
-**Status:** Phase 2 done: four attackers (oracle, random, traceroute,
+**Status:** Phase 2 done: five attackers (two oracles, random, traceroute,
 RTT/Ricci), reconnaissance metrics, damage, τ/η, and the reconnaissance
 experiment (RQ1–RQ3). See `CHANGES.md` for what has been done and `PLAN.md`
 §6 for what comes next.
@@ -19,7 +19,7 @@ experiment (RQ1–RQ3). See `CHANGES.md` for what has been done and `PLAN.md`
 | `routing.py` | Route traffic in memory with the existing TE engine | §2.1 |
 | `traffic.py` | Benign gravity-model demand at a chosen load | §4.3 |
 | `attack_plans.py` | Turn chosen pairs into a plan with an equal budget split | Eq. 7–8 |
-| `recon/oracle.py` | Perfect-knowledge attacker | §3.2 |
+| `recon/oracle.py` | Perfect-knowledge attackers: the paper's oracle, and the one that also knows benign traffic (the reference for τ and η, decision D15) | §3.2 |
 | `recon/random_plan.py` | No-knowledge attacker | §3.2 |
 | `recon/traceroute.py` | Traceroute attacker, with a probe simulator | §3.1.2, Eq. 5–6 |
 | `recon/rtt_ricci.py` | RTT/Ricci attacker, with an RTT simulator; regional data loaders | §3.1.1, Eq. 2–4 |
@@ -34,7 +34,7 @@ A minimal example, from the repository root:
 ```python
 from doppler2026.damage import relative_damage
 from doppler2026.model import AttackConfig, DamageConfig, RoutingConfig
-from doppler2026.recon.oracle import oracle_plan
+from doppler2026.recon.oracle import benign_oracle_plan, oracle_plan
 from doppler2026.topology import DEFAULT_CAPACITY, load_topology
 from doppler2026.traffic import benign_demand
 
@@ -43,9 +43,17 @@ topology = load_topology("ANS")
 benign = benign_demand(topology, target_utilization=0.5, routing=routing, seed=1)
 attack = AttackConfig(budget=2 * DEFAULT_CAPACITY, n_pairs=10)
 
-plan = oracle_plan(topology, attack, routing)   # learned on this topology
-result = relative_damage(plan, topology, benign, attack, routing, DamageConfig())
-print(result.ratio, result.plan_damage.benign_loss)   # 1.0, about 0.026
+damage = DamageConfig()
+
+# The reference oracle (decision D15) knows benign traffic too.
+plan = benign_oracle_plan(topology, benign, attack, routing, damage)
+result = relative_damage(plan, topology, benign, attack, routing, damage)
+print(result.ratio, result.plan_damage.benign_loss)   # 1.0, about 0.154
+
+# The paper's oracle (§3.2) knows only topology and routing.
+plan = oracle_plan(topology, attack, routing)
+result = relative_damage(plan, topology, benign, attack, routing, damage)
+print(result.ratio, result.other_ratio)   # about 0.167 (vs D15), 1.0 (vs itself)
 ```
 
 ## Where to read

@@ -22,6 +22,7 @@ Where each part of *Doppler-security-26* is implemented. Status is one of
 | §3.1.2, Eq. 5 | Observed traceroute graph Ĝ_tr | `traceroute.observed_graph` (silent hops break paths, D12); probes simulated by `traceroute.simulate` (I9) | implemented (simulated probes; real data is a gap) |
 | §3.1.2, Eq. 6 | Betweenness ranking B(e) | `recon/inferred.betweenness`, used by `traceroute.traceroute_attack` | implemented |
 | §3.2 | Oracle attacker | `recon/oracle.oracle_plan` (I3) | implemented |
+| §3.2 (extension, D15) | Oracle that also knows benign traffic; reference A* for τ and η | `recon/oracle.benign_oracle_plan`, chosen by `fresh_oracle_plan` from `AttackConfig.oracle_knowledge` | implemented (departs from §3.2's wording; flagged for review) |
 | §3.2 | No-knowledge attacker | `recon/random_plan.random_plan` | implemented |
 | §3.3, Eq. 8 | Equal split of budget R_A | `attack_plans.make_plan`; budget as a capacity multiple: `attack_plans.budget_from_capacity` (D4) | implemented |
 | §3.3 | Pairs whose inferred paths cross the target | `recon/inferred.plan_from_ranking` (I8) | implemented |
@@ -30,7 +31,7 @@ Where each part of *Doppler-security-26* is implemented. Status is one of
 | §3.4, Eq. 9 | P@k, path-level critical-link recovery | `metrics.precision_at_k`, `metrics.path_level_recovery`; C_k from `oracle.rank_links` | implemented |
 | §3.4 | Attack-effectiveness measures (bullets 1 to 4) | `model.DamageReport`, `damage.evaluate_damage` (I1, I2) | implemented |
 | §3.4 | Budget needed for a given disruption (bullet 5) | `damage.budget_to_disrupt` (D14) | implemented |
-| §3.4, Eq. 10 | Normalized effectiveness η | `damage.relative_damage` (same ratio as τ) | implemented |
+| §3.4, Eq. 10 | Normalized effectiveness η | `damage.relative_damage` (same ratio as τ; against both oracles, D15) | implemented |
 | §3.5 | Real measurements on operational networks | loaders return `TracerouteObservation` / `RttMeasurements`; only the regional reconstruction loader exists (`rtt_ricci.load_regional_reconstruction`) | gap (no raw data) |
 | §3.7 | RQ1–RQ3 | `experiments/recon_eval.py` → `recon.csv`, `transferability.csv`; figures `figures/fig_rq1_recovery.py`, `fig_rq2_critical_links.py`, `fig_rq3_attack_impact.py` | implemented (simulated measurements) |
 | §3.5, Table 1 | Network summary | `figures/table_networks.py` (from `networks.csv`) | implemented |

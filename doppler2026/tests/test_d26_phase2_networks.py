@@ -48,16 +48,23 @@ SMALL = recon_eval.ReconEvalConfig(
 def test_experiment_rows_for_a_geo_topology():
     network = next(recon_eval.load_networks(SMALL))
     recon_rows, transfer_rows = recon_eval.evaluate_network(network, SMALL)
-    # oracle + 2 random + 2 coverages x (1 traceroute + 1 rtt) plans, 1 budget.
-    assert len(transfer_rows) == 7
+    # 2 oracles + 2 random + 2 coverages x (1 traceroute + 1 rtt) plans,
+    # 1 budget.
+    assert len(transfer_rows) == 8
     assert {r["mechanism"] for r in transfer_rows} == {
+        "oracle_benign",
         "oracle",
         "random",
         "traceroute",
         "rtt_ricci",
     }
-    oracle = next(r for r in transfer_rows if r["mechanism"] == "oracle")
-    assert oracle["ratio"] == pytest.approx(1.0)
+    # Each oracle has ratio 1 against itself: the reference (D15) in
+    # ``ratio``, the paper's oracle in ``other_ratio``.
+    aware = next(r for r in transfer_rows if r["mechanism"] == "oracle_benign")
+    assert aware["oracle_knowledge"] == "benign"
+    assert aware["ratio"] == pytest.approx(1.0)
+    paper = next(r for r in transfer_rows if r["mechanism"] == "oracle")
+    assert paper["other_ratio"] == pytest.approx(1.0)
     metrics = {(r["mechanism"], r["metric"]) for r in recon_rows}
     for mechanism in ("traceroute", "rtt_ricci"):
         for name in (

@@ -6,12 +6,13 @@ against itself should have ratio 1.
 """
 
 import statistics
+from dataclasses import replace
 
 import pytest
 
 from doppler2026.damage import evaluate_damage, relative_damage
 from doppler2026.model import AttackConfig, DamageConfig, RoutingConfig
-from doppler2026.recon.oracle import oracle_plan
+from doppler2026.recon.oracle import benign_oracle_plan, oracle_plan
 from doppler2026.recon.random_plan import random_plan
 from doppler2026.topology import DEFAULT_CAPACITY, GML_DIR, load_topology
 from doppler2026.traffic import benign_demand
@@ -58,7 +59,33 @@ def test_oracle_beats_random_plans(ans):
 
 
 def test_oracle_against_itself_has_ratio_one(ans):
+    """The paper's oracle as the reference (D15 set to ``"routing"``)."""
     topology, benign, attack = ans
+    attack = replace(attack, oracle_knowledge="routing")
     plan = oracle_plan(topology, attack, ROUTING)
     result = relative_damage(plan, topology, benign, attack, ROUTING, DAMAGE)
     assert result.ratio == pytest.approx(1.0)
+
+
+def test_benign_oracle_against_itself_has_ratio_one(ans):
+    """The default reference (D15): the oracle that knows benign traffic."""
+    topology, benign, attack = ans
+    plan = benign_oracle_plan(topology, benign, attack, ROUTING, DAMAGE)
+    result = relative_damage(plan, topology, benign, attack, ROUTING, DAMAGE)
+    assert result.ratio == pytest.approx(1.0)
+
+
+def test_benign_oracle_does_at_least_as_much_damage(ans):
+    """It tries the paper's oracle's target too, so it can never do less."""
+    topology, benign, attack = ans
+    paper = evaluate_damage(
+        topology, benign, oracle_plan(topology, attack, ROUTING), ROUTING, DAMAGE
+    )
+    aware = evaluate_damage(
+        topology,
+        benign,
+        benign_oracle_plan(topology, benign, attack, ROUTING, DAMAGE),
+        ROUTING,
+        DAMAGE,
+    )
+    assert aware.benign_loss >= paper.benign_loss - DAMAGE.zero_tolerance

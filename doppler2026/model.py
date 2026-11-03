@@ -79,6 +79,10 @@ class RoutingConfig:
     seed: int | None = None
 
 
+ORACLE_KNOWLEDGE = ("benign", "routing")
+"""What the oracle may know (decision D15; ``AttackConfig.oracle_knowledge``)."""
+
+
 @dataclass(frozen=True)
 class AttackConfig:
     """Attacker settings (paper §3.3; decisions D4 and D8).
@@ -87,17 +91,25 @@ class AttackConfig:
     ``n_pairs`` is N_A, the most source-destination pairs a plan may use.
     ``endpoints`` lists the PoPs the attacker can send from and to; ``None``
     means every PoP (D8).
+    ``oracle_knowledge`` says which oracle builds the fresh plan A* that η
+    (Eq. 10) and τ (Eq. 1) divide by (decision D15, flagged for review):
+    ``"benign"`` (default) also knows the benign traffic matrix and targets
+    the link where its attack does the most damage; ``"routing"`` is the
+    paper's oracle (§3.2), which knows only topology and routing.
     """
 
     budget: float
     n_pairs: int = 10
     endpoints: tuple[str, ...] | None = None
+    oracle_knowledge: str = "benign"
 
     def __post_init__(self) -> None:
         if not (self.budget > 0 and math.isfinite(self.budget)):
             raise ValueError("budget must be a positive, finite rate")
         if self.n_pairs < 1:
             raise ValueError("n_pairs must be at least 1")
+        if self.oracle_knowledge not in ORACLE_KNOWLEDGE:
+            raise ValueError(f"oracle_knowledge must be one of {ORACLE_KNOWLEDGE}")
 
 
 @dataclass(frozen=True)
@@ -191,9 +203,16 @@ class RelativeDamage:
     - If it was learned on the same topology by a non-oracle mechanism,
       ``ratio`` is the normalized effectiveness η(A, G) (paper Eq. 10).
 
-    ``ratio`` can exceed 1: the oracle ranks links by how much attack traffic
-    it can concentrate (§3.2), which is not guaranteed to be the most damaging
-    plan. Values are stored unclipped.
+    The denominator comes from the oracle named by ``oracle_knowledge``
+    (decision D15). The ``other_*`` fields repeat the comparison against the
+    other oracle, so τ and η can be recomputed under either choice from saved
+    files.
+
+    ``ratio`` can exceed 1. The paper's oracle ranks links by how much attack
+    traffic it can concentrate (§3.2), which ignores benign traffic (open
+    issue O1). The benign-aware oracle searches only over target links, with
+    a fixed rule for choosing pairs, so it too is not a proven upper bound.
+    Values are stored unclipped.
 
     ``attack_immune`` is True when the fresh plan does no damage (D2).
     """
@@ -208,6 +227,12 @@ class RelativeDamage:
     attack_immune: bool
     plan_damage: DamageReport
     fresh_damage: DamageReport
+    oracle_knowledge: str
+    other_oracle_knowledge: str
+    other_denominator: float
+    other_ratio: float
+    other_attack_immune: bool
+    other_fresh_damage: DamageReport
 
     def as_row(self) -> dict[str, object]:
         """Flatten to one row of ``transferability.csv`` (PLAN §10)."""
@@ -220,10 +245,16 @@ class RelativeDamage:
             "denominator": self.denominator,
             "ratio": self.ratio,
             "attack_immune": self.attack_immune,
+            "oracle_knowledge": self.oracle_knowledge,
+            "other_oracle_knowledge": self.other_oracle_knowledge,
+            "other_denominator": self.other_denominator,
+            "other_ratio": self.other_ratio,
+            "other_attack_immune": self.other_attack_immune,
         }
         for prefix, report in (
             ("plan", self.plan_damage),
             ("fresh", self.fresh_damage),
+            ("other_fresh", self.other_fresh_damage),
         ):
             for key, value in asdict(report).items():
                 row[f"{prefix}_{key}"] = value

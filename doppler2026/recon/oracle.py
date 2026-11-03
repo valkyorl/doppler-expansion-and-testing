@@ -1,10 +1,21 @@
-"""Oracle attacker: perfect knowledge of topology and routing (paper §3.2).
+"""Oracle attackers: perfect knowledge of the network (paper §3.2).
 
-The oracle is the upper bound on what reconnaissance can give an attacker.
-It also supplies the fresh plan A*_j in the transferability ratio τ (Eq. 1):
-what an attacker who re-measured the new topology could do.
+The oracle is the reference for what reconnaissance can give an attacker.
+It supplies the fresh plan A*_j in the transferability ratio τ (Eq. 1) and
+in η (Eq. 10): what an attacker who re-measured the network could do.
 
-How it chooses (interpretation I3 in ``docs/decisions.md``):
+There are two oracles. Which one is the reference is decision D15 (flagged
+for review), set by ``AttackConfig.oracle_knowledge``; ``fresh_oracle_plan``
+picks it.
+
+- ``oracle_plan``, the paper's oracle (``"routing"``): knows topology and
+  routing state only.
+- ``benign_oracle_plan`` (``"benign"``, the default): also knows the benign
+  traffic matrix. It was added because the paper's oracle is not an upper
+  bound on damage (open issue O1): it cannot tell which link carries the
+  benign traffic, and measured attackers often did more damage.
+
+How the paper's oracle chooses (interpretation I3 in ``docs/decisions.md``):
 
 1. Route every ordered pair of attacker endpoints the way the network would.
 2. For each directed link, find the pairs whose traffic crosses it, and the
@@ -23,22 +34,33 @@ How it chooses (interpretation I3 in ``docs/decisions.md``):
 Benign load is not used: the paper's oracle knows topology and routing
 state, not the traffic matrix.
 
+How the benign-aware oracle chooses (D15): every link in the ranking above
+is a candidate, attacked with the same pairs (step 3). It simulates each
+candidate against the benign traffic and keeps the one with the most damage
+under the measure τ uses (``DamageConfig.tau_measure``; benign loss by D1).
+Ties keep the ranking order. Damage is not proportional to the budget, so
+the choice can change with the budget. This is a strong baseline but not a
+proven upper bound: other choices of pairs are not searched.
+
 The full ranking (``rank_links``) is also the ground truth for critical-link
 recovery: its top k links are C_k in P@k (Eq. 9; ``recon/metrics.py``).
 """
 
 from __future__ import annotations
 
+import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import networkx as nx
 
 from ..attack_plans import make_plan
-from ..model import AttackConfig, AttackPlan, Pair, RoutingConfig
+from ..model import AttackConfig, AttackPlan, DamageConfig, Pair, RoutingConfig
 from ..routing import all_pair_routes, directed, link_shares
 from ..topology import topology_id as compute_topology_id
 
 MECHANISM = "oracle"
+BENIGN_MECHANISM = "oracle_benign"
 
 
 @dataclass(frozen=True)
@@ -111,3 +133,68 @@ def oracle_plan(
         topology_id=topology_id or compute_topology_id(topology),
         target=best.link,
     )
+
+
+def benign_oracle_plan(
+    topology: nx.Graph,
+    benign: Mapping[Pair, float],
+    attack: AttackConfig,
+    routing: RoutingConfig,
+    damage: DamageConfig,
+    *,
+    topology_id: str | None = None,
+) -> AttackPlan:
+    """The oracle that also knows benign traffic (D15): attack the most damaging link.
+
+    Tries every link of ``rank_links`` with its pairs at ``attack.budget``
+    and keeps the plan with the most damage (``damage.tau_measure``). A
+    later candidate must beat the best so far by more than
+    ``damage.zero_tolerance``, so near-ties keep the ranking order.
+    """
+    # Imported here because ``damage`` imports this module.
+    from ..damage import evaluate_damage
+
+    ranking = rank_links(topology, attack, routing)
+    if not ranking:
+        raise ValueError("No link carries traffic between attacker endpoints")
+    tid = topology_id or compute_topology_id(topology)
+    best: AttackPlan | None = None
+    best_damage = -math.inf
+    for candidate in ranking:
+        plan = make_plan(
+            candidate.pairs,
+            attack.budget,
+            mechanism=BENIGN_MECHANISM,
+            topology_id=tid,
+            target=candidate.link,
+        )
+        report = evaluate_damage(topology, benign, plan, routing, damage)
+        value = report.measure(damage.tau_measure)
+        if value > best_damage + damage.zero_tolerance:
+            best, best_damage = plan, value
+    assert best is not None
+    return best
+
+
+def fresh_oracle_plan(
+    topology: nx.Graph,
+    benign: Mapping[Pair, float],
+    attack: AttackConfig,
+    routing: RoutingConfig,
+    damage: DamageConfig,
+    *,
+    knowledge: str | None = None,
+    topology_id: str | None = None,
+) -> AttackPlan:
+    """The fresh plan A* of η and τ, from the oracle chosen by D15.
+
+    ``knowledge`` defaults to ``attack.oracle_knowledge``.
+    """
+    knowledge = knowledge or attack.oracle_knowledge
+    if knowledge == "benign":
+        return benign_oracle_plan(
+            topology, benign, attack, routing, damage, topology_id=topology_id
+        )
+    if knowledge == "routing":
+        return oracle_plan(topology, attack, routing, topology_id=topology_id)
+    raise ValueError(f"Unknown oracle knowledge {knowledge!r}")

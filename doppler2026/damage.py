@@ -18,7 +18,9 @@ flows, so benign loss is never confused with attack loss.
 Relative damage. ``relative_damage`` divides a plan's damage by the damage
 of a fresh oracle plan built on the topology being evaluated, with the same
 budget. This one ratio is the paper's τ (Eq. 1) for a stale plan and η
-(Eq. 10) for a plan measured on the same topology.
+(Eq. 10) for a plan measured on the same topology. The oracle is the one
+chosen by decision D15 (by default the one that knows benign traffic); the
+ratio against the other oracle is saved too.
 
 Budget to disrupt. ``budget_to_disrupt`` is the fifth §3.4 measure: the
 smallest aggregate budget R_A at which a plan's pairs, with the equal split
@@ -36,6 +38,7 @@ import networkx as nx
 
 from .attack_plans import rescale
 from .model import (
+    ORACLE_KNOWLEDGE,
     AttackConfig,
     AttackPlan,
     DamageConfig,
@@ -44,7 +47,7 @@ from .model import (
     RelativeDamage,
     RoutingConfig,
 )
-from .recon.oracle import oracle_plan
+from .recon.oracle import fresh_oracle_plan
 from .routing import deliver, directed, route
 from .topology import topology_id as compute_topology_id
 
@@ -136,12 +139,17 @@ def relative_damage(
     config: DamageConfig,
     *,
     fresh_plan: AttackPlan | None = None,
+    other_fresh_plan: AttackPlan | None = None,
 ) -> RelativeDamage:
     """Damage of ``plan`` on ``topology`` relative to a fresh oracle plan.
 
     The fresh plan A* is built on ``topology`` with ``plan``'s own budget and
     ``attack``'s pair limit and endpoints, so both plans have the same
-    resources. Pass ``fresh_plan`` to reuse one already computed.
+    resources. It comes from the oracle named by ``attack.oracle_knowledge``
+    (decision D15). The same comparison against the other oracle is
+    recorded in the ``other_*`` fields, so the choice can be changed later
+    from saved results. Pass ``fresh_plan`` and ``other_fresh_plan`` to
+    reuse plans already computed.
 
     The ratio is τ (Eq. 1) when ``plan`` was learned on another topology and
     η (Eq. 10) when it was learned on this one. When the fresh plan does no
@@ -149,23 +157,35 @@ def relative_damage(
     decision D2 (``config.zero_denominator``).
     """
     evaluated_on = compute_topology_id(topology)
-    if fresh_plan is None:
-        fresh_plan = oracle_plan(
+    knowledge = attack.oracle_knowledge
+    (other,) = (k for k in ORACLE_KNOWLEDGE if k != knowledge)
+    same_budget = replace(attack, budget=plan.budget)
+
+    def fresh(given: AttackPlan | None, which: str) -> AttackPlan:
+        if given is not None:
+            return given
+        return fresh_oracle_plan(
             topology,
-            replace(attack, budget=plan.budget),
+            benign,
+            same_budget,
             routing,
+            config,
+            knowledge=which,
             topology_id=evaluated_on,
         )
-    plan_damage = evaluate_damage(topology, benign, plan, routing, config)
-    fresh_damage = evaluate_damage(topology, benign, fresh_plan, routing, config)
 
+    plan_damage = evaluate_damage(topology, benign, plan, routing, config)
     numerator = plan_damage.measure(config.tau_measure)
+    fresh_damage = evaluate_damage(
+        topology, benign, fresh(fresh_plan, knowledge), routing, config
+    )
+    other_damage = evaluate_damage(
+        topology, benign, fresh(other_fresh_plan, other), routing, config
+    )
     denominator = fresh_damage.measure(config.tau_measure)
-    immune = denominator <= config.zero_tolerance
-    if immune:
-        ratio = 0.0 if config.zero_denominator == "zero" else math.nan
-    else:
-        ratio = numerator / denominator
+    other_denominator = other_damage.measure(config.tau_measure)
+    ratio, immune = _ratio(numerator, denominator, config)
+    other_ratio, other_immune = _ratio(numerator, other_denominator, config)
 
     return RelativeDamage(
         plan_topology_id=plan.topology_id,
@@ -178,7 +198,22 @@ def relative_damage(
         attack_immune=immune,
         plan_damage=plan_damage,
         fresh_damage=fresh_damage,
+        oracle_knowledge=knowledge,
+        other_oracle_knowledge=other,
+        other_denominator=other_denominator,
+        other_ratio=other_ratio,
+        other_attack_immune=other_immune,
+        other_fresh_damage=other_damage,
     )
+
+
+def _ratio(
+    numerator: float, denominator: float, config: DamageConfig
+) -> tuple[float, bool]:
+    """τ or η, and whether the network is attack-immune (D2)."""
+    if denominator <= config.zero_tolerance:
+        return (0.0 if config.zero_denominator == "zero" else math.nan), True
+    return numerator / denominator, False
 
 
 def budget_to_disrupt(

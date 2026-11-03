@@ -4,15 +4,94 @@ Every file created or changed for the Doppler 2026 experiment, inside or
 outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first.
 
+## 2026-11-03: Interpretation I13, no simulated attackers on the regional network
+
+- `docs/decisions.md`: added I13, confirmed by the user. On the regional
+  network only the stored RTT/Ricci reconstruction is evaluated, so its RQ2
+  and RQ3 figures have no traceroute entry. This was already how the code
+  behaved but was not recorded.
+- `experiments/recon_eval.py`: the comment where regional returns early now
+  cites I13. No behavior change.
+
 ## 2026-11-03: Decision D15, the oracle knows benign traffic (resolves O1)
 
 - `docs/decisions.md`: added D15 (option (b) for open issue O1, decided by
   the user), marked O1 resolved, and added "Choices flagged for review",
   which lists what changing D15 later would cost.
-- No code has changed yet. Before Phase 3: add the
-  `AttackConfig.oracle_knowledge` setting, implement the benign-aware
-  oracle, save both oracles' fresh-plan damage per (plan, topology) pair, and
-  re-run the Phase 2 reconnaissance experiment.
+
+### Implementation
+
+Behavior change: τ and η now divide by the benign-aware oracle by default,
+so every η differs from the 2026-10-30 run. The paper's oracle is unchanged
+and still available.
+
+- `model.py`: new setting `AttackConfig.oracle_knowledge` (`"benign"`, the
+  default, or `"routing"`, the paper's oracle), validated against
+  `ORACLE_KNOWLEDGE`. `RelativeDamage` gained `oracle_knowledge` and the
+  comparison against the other oracle (`other_oracle_knowledge`,
+  `other_denominator`, `other_ratio`, `other_attack_immune`,
+  `other_fresh_damage`), all in `as_row()`. Why: D15, plus keeping the
+  choice cheap to change ("Choices flagged for review").
+- `recon/oracle.py`: new `benign_oracle_plan` (the selection rule approved
+  for D15: every link in the `rank_links` ranking is tried with its pairs and
+  simulated against benign traffic; the most damaging under the τ measure
+  wins; near-ties keep the ranking order) and `fresh_oracle_plan`, which
+  picks the oracle from the setting. `oracle_plan` and `rank_links` are
+  unchanged, so critical links for P@k (Eq. 9) are unchanged.
+- `damage.py`: `relative_damage` builds the fresh plan A* with
+  `fresh_oracle_plan` and always evaluates both oracles (new optional
+  `other_fresh_plan` to reuse one). The D2 zero rule moved into a helper
+  used for both ratios.
+- `experiments/recon_eval.py`: new `ReconEvalConfig.oracle_knowledge`
+  (saved in `config.json`). Both oracles are attackers (`oracle_benign`,
+  `oracle`) and are rebuilt at every budget, because the benign-aware
+  oracle's choice depends on the budget. `plan_target` now records the
+  target of the plan actually evaluated at that budget (the same as before
+  for every non-oracle plan).
+- `figures/common.py`: the benign-aware oracle gets palette slot 5 (magenta),
+  marker `v` and its own dash, so no existing attacker changes color.
+  Labels: "Oracle (benign)" and "Oracle (paper)".
+- `figures/fig_rq3_attack_impact.py`: the table shows η against both oracles.
+- Tests:
+  - `tests/test_d26_damage.py`: new hand-checked case (path x–y–z, benign
+    traffic only on z→y): the paper's oracle picks x→y by tie-break and does
+    no benign damage; the benign-aware oracle picks z→y and loses 80/180.
+    Also checks both ratios are recorded and an unknown setting is refused.
+    The existing ratio-1 test now states `oracle_knowledge="routing"`,
+    because it tests the paper's oracle against itself.
+  - `tests/test_d26_phase1_ans.py`: same change to the ratio-1 test, plus
+    two new tests (the benign-aware oracle has ratio 1 against itself and
+    does at least as much damage as the paper's oracle).
+  - `tests/test_d26_phase2_networks.py`: expects the fifth attacker and
+    checks each oracle's ratio against itself.
+- Docs: `README.md` (status, module table, example), `PLAN.md` (status, the
+  cost of the fresh plan in the Phase 3 filter, layout, §10 columns),
+  `docs/paper_map.md` (new §3.2 extension row), `docs/decisions.md` (D15
+  completed with the selection rule and setting names).
+
+### Phase 2 re-run under D15
+
+- Run `data/results/doppler2026/recon_eval/phase2-d15-2026-11-03/` (local),
+  all six networks, 19 minutes (was 12; the benign-aware oracle simulates one
+  attack per link, and every row now evaluates both oracles). Figures and
+  tables in `figures/out/` were regenerated from it. The 2026-10-30 run is
+  kept for comparison.
+- RQ1 and RQ2 are unchanged (they do not use the oracle's damage).
+- RQ3:
+  - The benign-aware oracle does much more benign damage than the paper's
+    oracle: at R_A = 2× the paper's oracle reaches only 0.17 (ANS) to 0.64
+    (sprint) of it.
+  - η > 1 is now rare: 0.6% of measured plans at 1× and 0.4% at 4× (largest
+    1.21, RTT/Ricci on bellCanada at 1×), none at 2×. Under the paper's
+    oracle it was 15% at 2×. As expected, the oracle is a strong baseline,
+    not a proven upper bound.
+  - Below 1× link capacity neither oracle causes any benign loss, so every
+    row at 0.25× and 0.5× is attack-immune and η = 0 there (D2).
+  - Budget to disrupt: the benign-aware oracle needs 0.5–0.73× capacity.
+    It is not always the lowest (bellCanada: 0.58 against 0.5 for the
+    paper's oracle and traceroute), because its pairs are chosen at the
+    reference budget (1×) for the most damage there, not for the earliest
+    onset of loss.
 
 ## 2026-10-30: Phase 2 (reconnaissance) — complete
 

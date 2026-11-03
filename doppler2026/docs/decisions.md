@@ -34,7 +34,7 @@ later means editing a config value and re-running the affected experiments
 | D12 | How a silent traceroute hop enters Ĝ_tr (§3.1.2, Eq. 5) | It breaks the path: only two consecutive hops that both answered give an edge. No false links; some real links may be missed | `traceroute.observed_graph` (no setting; the alternatives would be new code) | User, 2026-10-30 |
 | D13 | How ε is expressed in the sweep (§3.1.1, Eq. 3) | As a quantile of all measured minimum RTTs, so a sweep gives similar graph densities on networks of any size. ε in ms is saved alongside | `ReconEvalConfig.epsilon_quantiles` | User, 2026-10-30 |
 | D14 | Disruption level for the fifth §3.4 measure (budget needed to disrupt) | "Any benign loss": the smallest budget at which benign loss exceeds a tiny level (one millionth of benign demand, above numerical noise), with the plan's pairs fixed. Matches §3.3: "measure when the attack begins to affect benign traffic" | `DamageConfig.disruption_level = 1e-6` | User, 2026-10-30 |
-| D15 | What the oracle knows (§3.2), resolving open issue O1. **Flagged for review: see "Choices flagged for review" below** | Option (b): the oracle also knows the benign traffic matrix and targets the link where its attack causes the most benign loss. It is the fresh plan A* in η (Eq. 10) and τ (Eq. 1). The paper's oracle (topology and routing only) stays available as a setting | `AttackConfig.oracle_knowledge = "benign"`; the paper's oracle is `"routing"` (setting not yet in code; added before Phase 3) | User, 2026-11-03 |
+| D15 | What the oracle knows (§3.2), resolving open issue O1. **Flagged for review: see "Choices flagged for review" below** | Option (b): the oracle also knows the benign traffic matrix. It is the fresh plan A* in η (Eq. 10) and τ (Eq. 1). How it chooses (approved by the user): each link in the paper oracle's ranking (I3) is a candidate, attacked with the up to N_A pairs that send the most traffic over it; each candidate is simulated against the benign traffic, and the one with the most damage under the τ measure (benign loss, D1) is the target; near-ties keep the ranking order. The paper's oracle (topology and routing only) stays available, and true critical links for P@k (Eq. 9) still come from its ranking (§3.4) | `AttackConfig.oracle_knowledge = "benign"` (`recon/oracle.benign_oracle_plan`); the paper's oracle is `"routing"`. The experiment's copy is `ReconEvalConfig.oracle_knowledge` | User, 2026-11-03 |
 | E1 | Correct the link-capacity model only in the new in-memory path | The experiment uses `onset.te.deliver_flows`, where every link carries at most its capacity in total. `onset.te.evaluate()` keeps its older model unchanged (see "Known issue in shared code" below) | — | User, 2026-10-30 |
 
 ### Known issue in shared code (not fixed, by decision E1)
@@ -57,21 +57,31 @@ cost, so the cost stays known as the experiment grows.
 - **D15, the oracle's knowledge (option b).** It departs from the paper's
   wording in §3.2 ("knows topology and routing"), so the paper text or the
   choice may need to change once results are in.
-  - Code: the setting `AttackConfig.oracle_knowledge` keeps both oracles,
-    so switching back means changing one value.
-  - Phase 2 results: η changes, so the reconnaissance run is redone (about
-    12 minutes); the figures are regenerated from it. RQ1 and RQ2 do not
+  - Code: the setting `AttackConfig.oracle_knowledge` (in the
+    reconnaissance experiment, `ReconEvalConfig.oracle_knowledge`) keeps
+    both oracles, so switching back means changing one value.
+  - Phase 2 results: no re-run needed. Every row of `transferability.csv`
+    has η against both oracles (`ratio` against the chosen one,
+    `other_ratio` against the other, with `oracle_knowledge` naming which is
+    which), and both oracles are attackers in their own right
+    (`oracle_benign`, `oracle`). Switching means pointing the figure
+    scripts at `other_ratio`, or re-running (about 19 minutes) to swap
+    the columns. RQ1 and RQ2 do not
     change: they use the oracle's ranking only as ground truth for
     critical links (I3), which is set separately (see below).
   - Phase 3–4 results: τ decides which topologies Doppler accepts, so every
     multi-epoch run must be re-run under the other oracle. To keep this
-    affordable, each run saves the damage of both oracles' fresh plans for
-    every (plan, topology) pair, so τ and η under either oracle can be
-    recomputed from saved files for single-step comparisons.
+    affordable, `damage.relative_damage` always records the damage of both
+    oracles' fresh plans for every (plan, topology) pair, so τ and η under
+    either oracle can be recomputed from saved files for single-step
+    comparisons.
   - Caveat: option (b) makes the oracle a much stronger baseline but not a
     proven upper bound. It searches over target links with a fixed rule for
     choosing pairs, so another plan can still, rarely, do more damage.
     η values are stored unclipped, and any η > 1 is reported.
+    Observed in the 2026-11-03 run: 0.6% of measured plans at 1× and
+    0.4% at 4× have η > 1 (largest 1.21), against 15% at 2× under the
+    paper's oracle.
   - Critical links for P@k (Eq. 9) stay defined by topology and routing,
     as in §3.4, unless the user decides otherwise.
 
@@ -111,6 +121,7 @@ can be changed in one place.
 | I10 | Ollivier–Ricci curvature of Ĝ_ε (§3.1.1) | Computed on Ĝ_ε without weights (every edge length 1), library defaults otherwise (α = 0.5, exact optimal transport). Eq. 3 defines Ĝ_ε by the threshold alone. Should be checked against the prior method [?] once it is identified | `rtt_ricci.ricci_curvature` |
 | I11 | Repeated RTT measurements, minimum kept (Eq. 2) | Simulated. One probe = propagation delay of a forward and a return path (each drawn by its ECMP share; great-circle length × `route_factor` 1.0, at 200 km/ms in fiber) plus exponential queuing delay (mean 1 ms). 10 probes per pair. Each unordered pair is probed once from the smaller name | `rtt_ricci.simulate`, `RttConfig` |
 | I12 | Topology recovery only against independently validated ground truth (§3.4) | In simulation the true network is the one the measurements were generated from, so it is ground truth by construction; rows say `ground_truth_source = simulation`. The regional "ground truth" is not validated (audit #8), so RQ1 is refused there; its RQ2 and RQ3 rows are computed but flagged `ground_truth_independent = False` | `recon/metrics.py`, `experiments/recon_eval.py` |
+| I13 | Evaluating reconnaissance on operational networks (§3.5, §3.7) | On the regional network only the stored RTT/Ricci reconstruction is evaluated; no traceroute or RTT measurements are simulated there. No real traceroute data exists for it (P4), and its "ground truth" graph has unknown provenance (audit #8) and partly default capacities, so a simulated attacker on it would be one more simulated network, not a check of real measurements. Its RQ2 and RQ3 figures therefore show only the oracles, no-knowledge plans, and RTT/Ricci. **Confirmed by the user, 2026-11-03** | `experiments/recon_eval.attempts` |
 
 ## Open issues found in Phase 2
 

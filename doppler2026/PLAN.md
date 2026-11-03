@@ -6,9 +6,8 @@ and checking the experiment. Paper references use § and Eq. numbers. Audit
 references ("audit #n") point to items in
 `docs/knowledge/analysisResults/doppler-paper-vs-code.html`.
 
-Status: **Phase 2 complete (2026-10-30).** Next: implement decision D15 (the oracle
-knows benign traffic; `docs/decisions.md`, flagged for review) and re-run
-Phase 2, then Phase 3. See `CHANGES.md`.
+Status: **Phase 2 complete (2026-10-30); decision D15 implemented and Phase 2
+re-run (2026-11-03).** Next: Phase 3. See `CHANGES.md`.
 
 ---
 
@@ -62,6 +61,10 @@ Two points carry most of the design:
   MILP. The paper allows this: it enumerates up to K candidates satisfying the
   constraints (Eq. 31) and filters them (§4.3). The MILP only produces
   operationally plausible candidates; the security filter decides.
+  The fresh plan comes from the oracle that also knows benign traffic
+  (decision D15, flagged for review). It simulates one attack per link
+  (about twice the number of links per candidate and budget), so its cost
+  is part of the security filter's cost in Phase 3.
 - **The defender never sees attack traffic.** The MILP uses the estimated
   benign demand D_t (§4.3 input 4). Attack plans enter only through the
   security filter. This fixes audit #16.
@@ -89,7 +92,8 @@ doppler2026/
   topology.py           loading topologies with capacities; stable topology IDs
   attack_plans.py       A = {(s_i, d_i, r_i)} (Eq. 7), budget split (Eq. 8)
   recon/
-    oracle.py           oracle attacker (§3.2)
+    oracle.py           oracle attackers: the paper's (§3.2) and the one that
+                        also knows benign traffic (D15)
     random_plan.py      no-knowledge attacker (§3.2)
     inferred.py         inferred graph + edge ranking -> plan (§3.3), shared
     traceroute.py       simulated traceroute + betweenness ranking (§3.1.2, Eq. 5–6)
@@ -285,7 +289,9 @@ down. This is a decision for the authors, tracked here so it is not forgotten.
 - `candidates.csv`: one row per candidate per epoch (filter outcomes and
   reasons, T(G′), secondary scores).
 - `transferability.csv`: one row per (plan, topology) pair with every damage
-  measure and τ.
+  measure and τ. τ is given against both oracles: `ratio` and `fresh_*`
+  against the reference chosen by D15 (named in `oracle_knowledge`),
+  `other_ratio` and `other_fresh_*` against the other one.
 - `recon.csv`: reconnaissance metrics per mechanism, network, and ε.
 - `transitions.jsonl`: the ordered action list per transition (the testbed
   hand-off from §9).

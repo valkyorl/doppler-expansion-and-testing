@@ -6,8 +6,9 @@ Every figure script reads only result files of a run (rule 6 in
 newest run of the experiment.
 
 Colors follow the entity, never its rank: each attacker keeps one color and
-one marker in every figure (the first four slots of the validated reference
-palette of the dataviz guidelines). Markers and line styles repeat the
+one marker in every figure (the first five slots of the validated reference
+palette of the dataviz guidelines; the benign-aware oracle of decision D15
+was added last, so it takes slot 5 and no other attacker changes color). Markers and line styles repeat the
 identity, so no figure depends on color alone.
 """
 
@@ -26,21 +27,35 @@ from ..results import RESULTS_ROOT
 
 OUT_DIR = Path(__file__).resolve().parent / "out"
 
-MECHANISMS = ("oracle", "random", "traceroute", "rtt_ricci")
+MECHANISMS = ("oracle_benign", "oracle", "random", "traceroute", "rtt_ricci")
 LABELS = {
-    "oracle": "Oracle",
+    "oracle_benign": "Oracle (benign)",
+    "oracle": "Oracle (paper)",
     "random": "No knowledge",
     "traceroute": "Traceroute",
     "rtt_ricci": "RTT / Ricci",
 }
 COLORS = {
+    "oracle_benign": "#e87ba4",
     "oracle": "#2a78d6",
     "random": "#eb6834",
     "traceroute": "#1baf7a",
     "rtt_ricci": "#eda100",
 }
-MARKERS = {"oracle": "o", "random": "s", "traceroute": "^", "rtt_ricci": "D"}
-LINESTYLES = {"oracle": "-", "random": ":", "traceroute": "--", "rtt_ricci": "-."}
+MARKERS = {
+    "oracle_benign": "v",
+    "oracle": "o",
+    "random": "s",
+    "traceroute": "^",
+    "rtt_ricci": "D",
+}
+LINESTYLES = {
+    "oracle_benign": (0, (5, 1, 1, 1)),
+    "oracle": "-",
+    "random": ":",
+    "traceroute": "--",
+    "rtt_ricci": "-.",
+}
 
 # Coverage is a magnitude, so it gets one hue from light to dark.
 COVERAGE_COLORS = {0.25: "#9ec5f4", 0.5: "#5598e7", 1.0: "#1c5cab"}
