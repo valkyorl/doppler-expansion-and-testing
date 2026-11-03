@@ -162,9 +162,10 @@ cannot work correctly without it. All are listed in `CHANGES.md` when made.
    Phase 1). `route_demands()` routes without files; `deliver_flows()` pushes
    labelled flows (benign and attack separately) through the network so that
    every link carries at most its capacity, with proportional or max-min
-   sharing (D11). `evaluate()` behaves exactly as before; its older loss
-   model has a known capacity bug that was deliberately left in place
-   (decision E1 in `docs/decisions.md`).
+   sharing (D11). `evaluate()` now uses the same loss model with max-min
+   sharing: its older hop-by-hop model let a link carry more than its
+   capacity, and was fixed on 2026-11-03 (decision E1 in `docs/decisions.md`;
+   results of existing methods change when links are overloaded).
 3. **`src/onset/base_types.py` and `src/onset/open_doppler.py`: optional
    per-edge capacity.** An optional `edge_capacity` mapping on
    `OptimizationProblem`, used by the MILP's utilization rows when present

@@ -862,20 +862,6 @@ def _semimcf_routes(
     return routes
 
 
-def _fair_share(
-    capacity: float, flows: Sequence[tuple[int, float]]
-) -> dict[int, float]:
-    remaining = capacity
-    shares: dict[int, float] = {}
-    ordered = sorted(flows, key=lambda item: (item[1], item[0]))
-    for position, (flow_id, demand) in enumerate(ordered):
-        count = len(ordered) - position
-        share = demand if demand * count <= remaining else remaining / count
-        shares[flow_id] = max(0.0, share)
-        remaining -= share
-    return shares
-
-
 SHARING_MODES = ("proportional", "max_min")
 """How an overloaded link divides its capacity in :func:`deliver_flows`."""
 
@@ -1050,9 +1036,7 @@ def deliver_flows(
     ``"proportional"`` (every flow loses the same fraction, like tail drop)
     or ``"max_min"`` (smaller flows are served in full first).
 
-    Note: :func:`evaluate` uses a different, older hop-by-hop model, in which
-    flows that reach a link at different hop numbers do not compete for its
-    capacity. It is left unchanged so existing results stay reproducible.
+    :func:`evaluate` uses the same loss model with ``"max_min"`` sharing.
     """
     if sharing not in SHARING_MODES:
         raise ValueError(f"sharing must be one of {SHARING_MODES}, got {sharing!r}")
@@ -1093,24 +1077,17 @@ def _statistics(
             for edge in itertools.pairwise(path):
                 expected_loads[edge] += demand
 
-    current = {flow_id: demand for flow_id, (_, demand) in enumerate(path_flows)}
-    actual_loads: dict[Edge, float] = defaultdict(float)
-    max_hops = max((len(path) - 1 for path, _ in path_flows), default=0)
-    congestion_drop = 0.0
-    for hop in range(max_hops):
-        queues: dict[Edge, list[tuple[int, float]]] = defaultdict(list)
-        for flow_id, (path, _) in enumerate(path_flows):
-            if hop < len(path) - 1 and current.get(flow_id, 0.0) > 0:
-                queues[(path[hop], path[hop + 1])].append((flow_id, current[flow_id]))
-        for edge, flows in queues.items():
-            shares = _fair_share(float(graph.edges[edge]["capacity"]), flows)
-            for flow_id, incoming in flows:
-                current[flow_id] = shares[flow_id]
-                congestion_drop += incoming - shares[flow_id]
-                actual_loads[edge] += shares[flow_id]
+    # Max-min sharing, as before; every link now carries at most its capacity
+    # whichever hop each flow is on. The previous hop-by-hop loop grouped
+    # flows by hop number, so flows reaching one link at different hops never
+    # competed for it (decision E1 in doppler2026/docs/decisions.md).
+    delivered_rates, actual_loads = _capacity_constrained_delivery(
+        graph, path_flows, "max_min"
+    )
+    congestion_drop = sum(demand for _, demand in path_flows) - sum(delivered_rates)
 
     offered = sum(demands.values())
-    delivered = sum(current.values())
+    delivered = sum(delivered_rates)
     unroutable = sum(
         demands[commodity]
         for commodity, commodity_routes in routes.items()
@@ -1245,7 +1222,11 @@ def evaluate(
     *,
     seed: int | None = None,
 ) -> EvaluationResult:
-    """Evaluate one traffic matrix and write the historical result-file contract."""
+    """Evaluate one traffic matrix and write the historical result-file contract.
+
+    Overloaded links share capacity max-min fairly, and every link carries at
+    most its capacity in total (see :func:`_capacity_constrained_delivery`).
+    """
     graph = _load_topology(topo_file)
     demands = _load_demands(traffic_file, hosts_file)
     method = te_method.lower().lstrip("-")

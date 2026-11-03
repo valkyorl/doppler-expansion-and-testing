@@ -105,6 +105,37 @@ s1 -> h1 [cost=1, capacity="100Gbps"];
         self.assertEqual(result.congestion_loss, 0.0)
         self.assertEqual(result.failure_loss, 1.0)
 
+    def test_flows_at_different_hops_share_link_capacity(self):
+        """Regression for E1: link capacity is shared whatever hop a flow is on.
+
+        h1 -> h3 reaches s2 -> s3 on its third hop and h2 -> h3 on its second.
+        The old hop-by-hop loop never put them in the same queue, so a
+        100-capacity link carried 200 with no loss. Under max-min sharing each
+        gets 50, so half of the 200 offered is lost.
+        """
+        self.topology.write_text(
+            """digraph topology {
+h1 [type=host]; h2 [type=host]; h3 [type=host];
+s1 [type=switch]; s2 [type=switch]; s3 [type=switch];
+h1 -> s1 [cost=1, capacity="100"];
+h2 -> s2 [cost=1, capacity="100"];
+s1 -> s2 [cost=1, capacity="100"];
+s2 -> s3 [cost=1, capacity="100"];
+s3 -> h3 [cost=1, capacity="100"];
+}
+""",
+            encoding="utf-8",
+        )
+        self.hosts.write_text("h1\nh2\nh3\n", encoding="utf-8")
+        self.matrix.write_text("0 0 100 0 0 100 0 0 0", encoding="utf-8")
+
+        result = self.evaluate("-ecmp")
+
+        self.assertAlmostEqual(result.throughput, 0.5)
+        self.assertAlmostEqual(result.congestion_loss, 0.5)
+        carried = (result.result_dir / "EdgeCongestionVsIterations.dat").read_text()
+        self.assertIn("(s2,s3) : 1\n", carried)
+
     def test_ecmp_budget_is_deterministic(self):
         graph = _load_topology(str(self.topology))
         routes = _ecmp_routes(graph, {("h1", "h2"): 1.0}, budget=1)

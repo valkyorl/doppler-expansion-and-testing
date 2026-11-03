@@ -4,6 +4,47 @@ Every file created or changed for the Doppler 2026 experiment, inside or
 outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first.
 
+## 2026-11-03: E1 fixed; D26, D27, I3, I4 accepted
+
+### Bug fix outside this folder: `evaluate()` capacity (E1)
+
+**Behavior change in shared code**, requested by the user as a bug fix.
+
+- `src/onset/te/engine.py`: `_statistics` (used by `evaluate()`) no longer
+  drops traffic hop by hop. Grouping flows by hop number let flows that
+  reach the same link at different hops avoid competing for it, so a link
+  could carry more than its capacity with no loss. It now calls
+  `_capacity_constrained_delivery`, the solver `deliver_flows` already uses,
+  with max-min sharing, which is the sharing rule `evaluate()` already
+  applied. `_fair_share` was used only by the old loop and was removed.
+  Docstrings of `evaluate` and `deliver_flows` updated.
+- `tests/te_engine_test.py`: new regression test
+  `test_flows_at_different_hops_share_link_capacity` (two flows meet on a
+  100-capacity link at hops 2 and 3: before the fix throughput 1.0, now 0.5).
+  All existing `evaluate()` tests pass unchanged.
+- Side effect: loss and throughput of every method evaluated through
+  `evaluate()` (all `Simulation` methods, via `validation._evaluate_te`)
+  change whenever links are overloaded. On ANS (ECMP, benign traffic
+  scaled 3× and 4×) loss rose from 3.9% to 8.0% and from 9.6% to 13.7%;
+  the most loaded link had carried 1.26× and 1.34× its capacity, and now
+  carries 1.0×. Without overload nothing changes. Speed is unchanged.
+- The experiment itself is unaffected: it always used `deliver_flows`.
+- Docs: `docs/decisions.md` (E1 row, "Fixed bug in shared code"),
+  `PLAN.md` §5 item 2, `docs/references.md` (YATES loss-model row), and
+  `docs/knowledge/architecture.md` (outside this folder: one paragraph saying
+  the loss model changed and older results are not comparable under
+  overload).
+
+### Decisions
+
+- `docs/decisions.md`: D26 (traceroute history attacker at the Phase 2
+  headline settings, fresh seed per epoch) and D27 (defender's demand
+  estimate = true benign demand, fixed) accepted and moved to the accepted
+  table. I3 and I4 marked accepted but kept as interpretations, with what
+  changing each would involve added to "Choices flagged for review".
+- `README.md`: notes that figure PDFs in `figures/out/` are deliberately not
+  in git (the user's choice; they are regenerated from runs).
+
 ## 2026-11-03: Gurobi licence kept out of git
 
 - `.gitignore` (repository root, outside this folder): added `gurobi.lic` and

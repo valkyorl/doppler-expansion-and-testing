@@ -67,6 +67,7 @@ print(result.ratio, result.other_ratio)   # about 0.167 (vs D15), 1.0 (vs itself
 | `docs/references.md` | Libraries, methods, and datasets used, with citations |
 | `docs/diagrams/` | Control loop, module map, and data-flow diagrams |
 | `docs/Doppler_security_26.pdf` | The paper draft (kept out of git; never commit or publish it) |
+| `figures/out/` | Generated figures and tables. The PDFs are deliberately not in git (the repository ignores `*.pdf`); regenerate them from a run with the scripts in `figures/` |
 
 ## Running
 

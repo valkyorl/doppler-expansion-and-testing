@@ -89,6 +89,11 @@ topologies are ranked in parallel through the same internal evaluator.
 Compatibility details are deliberate: capacity suffixes use YATES's binary
 multipliers, non-switch access links receive its historical 100x multiplier,
 and ECMP is capped deterministically by the path budget (currently three).
+The loss model is not YATES's: since 2026-11-03, overloaded links share
+capacity max-min fairly and never carry more than their capacity, whichever
+hop each flow is on (`doppler2026/docs/decisions.md`, E1). Loss and
+throughput results from before that date are not comparable when links were
+overloaded.
 
 ## Doppler Path
 

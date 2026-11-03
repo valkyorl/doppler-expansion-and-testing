@@ -35,7 +35,7 @@ later means editing a config value and re-running the affected experiments
 | D13 | How ε is expressed in the sweep (§3.1.1, Eq. 3) | As a quantile of all measured minimum RTTs, so a sweep gives similar graph densities on networks of any size. ε in ms is saved alongside | `ReconEvalConfig.epsilon_quantiles` | User, 2026-10-30 |
 | D14 | Disruption level for the fifth §3.4 measure (budget needed to disrupt) | "Any benign loss": the smallest budget at which benign loss exceeds a tiny level (one millionth of benign demand, above numerical noise), with the plan's pairs fixed. Matches §3.3: "measure when the attack begins to affect benign traffic" | `DamageConfig.disruption_level = 1e-6` | User, 2026-10-30 |
 | D15 | What the oracle knows (§3.2), resolving open issue O1. **Flagged for review: see "Choices flagged for review" below** | Option (b): the oracle also knows the benign traffic matrix. It is the fresh plan A* in η (Eq. 10) and τ (Eq. 1). How it chooses (approved by the user): each link in the paper oracle's ranking (I3) is a candidate, attacked with the up to N_A pairs that send the most traffic over it; each candidate is simulated against the benign traffic, and the one with the most damage under the τ measure (benign loss, D1) is the target; near-ties keep the ranking order. The paper's oracle (topology and routing only) stays available, and true critical links for P@k (Eq. 9) still come from its ranking (§3.4) | `AttackConfig.oracle_knowledge = "benign"` (`recon/oracle.benign_oracle_plan`); the paper's oracle is `"routing"`. The experiment's copy is `ReconEvalConfig.oracle_knowledge` | User, 2026-11-03 |
-| E1 | Correct the link-capacity model only in the new in-memory path | The experiment uses `onset.te.deliver_flows`, where every link carries at most its capacity in total. `onset.te.evaluate()` keeps its older model unchanged (see "Known issue in shared code" below) | — | User, 2026-10-30 |
+| E1 | The link-capacity bug in `onset.te.evaluate()` | **Fixed** (user, 2026-11-03; originally left unfixed on 2026-10-30). `evaluate()` now uses the same loss model as `deliver_flows`, keeping its max-min sharing: every link carries at most its capacity in total. See "Fixed bug in shared code" below | — | User, 2026-11-03 |
 | D3 | History length h, threshold τ_max, pool size K | h = 3, τ_max = 0.5, K = 50 (defaults; all swept in experiments) | Named when built in Phase 3 | User, 2026-11-03 |
 | D5 | U_max and S_max | U_max = 0.8, S_max = 1.5 | Named when built in Phase 3 | User, 2026-11-03 |
 | D6 | Optical reach | No km limit by default (configurable); D16's two-hop rule bounds E* | Named when built in Phase 3 | User, 2026-11-03 |
@@ -51,18 +51,30 @@ later means editing a config value and re-running the affected experiments
 | D23 | Local candidate set (§4.10) | Old "conservative" set (top 10% of links by edge betweenness, one endpoint moved to a neighbour) plus links around the targets of plans in the history; "liberal" as a middle option; expanded set = all of E* | Named when built in Phase 3 | User, 2026-11-03 |
 | D24 | Secondary objective for selection (§4.11) | MLU (benign demand, ECMP); stretch and number of changes are alternative settings. Works with D9 | Named when built in Phase 3 | User, 2026-11-03 |
 | D25 | Solver and time budget T_opt (§4.12) | HiGHS (already used), T_opt = 60 s per epoch, the old simulator's default (old scripts swept 0.5, 1, and 5 minutes, and K from 10 to 100). A Gurobi backend is added only if HiGHS is too slow to fill the pool | Named when built in Phase 3 | User, 2026-11-03 |
+| D26 | Measurement settings of the traceroute attacker whose plans fill the history (D7) | The Phase 2 headline settings: every PoP a vantage point, 10% silent routers; measurement seed = epoch number, so each epoch's plan comes from fresh probes | Named when built in Phase 3 | User, 2026-11-03 |
+| D27 | The defender's demand estimate D_t (§4.3 input 4) | D_t = the true benign demand (a perfect estimate), the same matrix every epoch. Estimation error is a later experiment axis | Named when built in Phase 3 | User, 2026-11-03 |
 
-### Known issue in shared code (not fixed, by decision E1)
+### Fixed bug in shared code (E1)
 
-`onset.te.evaluate()` drops traffic hop by hop and groups flows by their hop
-number as well as the link. Flows that reach the same link at different hop
-numbers never compete for its capacity, so a link can carry more than its
-capacity with no loss. Minimal case: a 100-capacity link b→c carrying flow
-a→b→c (second hop) and flow b→c (first hop), 100 each, carries 200 with zero
-loss (reproduced in `tests/test_te_in_memory.py`, which checks that the new
-path shares the link 50/50 instead). This affects the loss and throughput
-results of every existing method that uses `evaluate()`. It was left
-unchanged so past results stay reproducible; whether to fix it is open.
+`onset.te.evaluate()` used to drop traffic hop by hop and group flows by
+their hop number as well as the link. Flows that reached the same link at
+different hop numbers never competed for its capacity, so a link could carry
+more than its capacity with no loss. Minimal case: a 100-capacity link b→c
+carrying flow a→b→c (second hop) and flow b→c (first hop), 100 each, carried
+200 with zero loss.
+
+Fixed 2026-11-03 at the user's request: `evaluate()` now uses the solver of
+`deliver_flows` (`_capacity_constrained_delivery`) with max-min sharing, the
+sharing rule it already used. Regression test:
+`tests/te_engine_test.py::test_flows_at_different_hops_share_link_capacity`.
+
+**Side effect:** loss and throughput of every existing method that uses
+`evaluate()` (`doppler`, `onset*`, and the other `Simulation` methods) change
+whenever links are overloaded, so results produced before the fix are not
+comparable with results after it. On ANS with ECMP and the Phase 1 benign
+traffic scaled 3× and 4×, reported loss rose from 3.9% to 8.0% and from 9.6%
+to 13.7%, and the most loaded link went from carrying 1.26× and 1.34× its
+capacity to 1.0×. Results without overload are unchanged.
 
 ### Choices flagged for review
 
@@ -100,6 +112,20 @@ cost, so the cost stays known as the experiment grows.
   - Critical links for P@k (Eq. 9) stay defined by topology and routing,
     as in §3.4, unless the user decides otherwise.
 
+- **I3, how the paper's oracle ranks links** (accepted 2026-11-03; no change
+  planned). It is in one function, `recon/oracle.rank_links`, but three
+  things build on it: the paper's oracle, the true critical links of RQ2
+  (P@k, path-level recovery), and the candidate targets the benign-aware
+  oracle (D15) tries. A different ranking means rerunning Phase 2 and, from
+  Phase 3 on, every Doppler run. The traceroute and RTT attackers share the
+  same per-link scoring (I8), which would likely change with it.
+- **I4, damage measured with the network's own routing** (accepted
+  2026-11-03; no change planned). It sits in `damage.evaluate_damage` and
+  `routing.py`. Alternatives (for example routing attack traffic separately,
+  or a TE method that reacts to traffic) need new code there, invalidate the
+  ECMP route cache's assumption that routes do not depend on traffic, and
+  change every damage, η, and τ result, so all experiments would be rerun.
+
 ### Changing a decision later
 
 - Code: change the config value. No logic is written around a specific value.
@@ -114,6 +140,11 @@ cost, so the cost stays known as the experiment grows.
 
 ## Interpretations made in Phase 1 (need confirmation)
 
+I3 and I4 were accepted by the user on 2026-11-03 but remain
+interpretations of the paper, not settled paper text: they stay listed here,
+with what changing them would involve, so they can be revisited (see
+"Choices flagged for review").
+
 The paper's wording leaves these open. Each was implemented as described and
 can be changed in one place.
 
@@ -121,8 +152,8 @@ can be changed in one place.
 |---|---|---|---|
 | I1 | "the amount of physical-link capacity driven above its safe operating threshold" (§3.4) | Total capacity of links whose offered utilization exceeds the safe threshold (default 0.8, `DamageConfig.safe_threshold`) | `damage.py` |
 | I2 | "the fraction of benign traffic traversing congested links" (§3.4) | Share of benign demand whose routes cross at least one link with offered utilization above 1, weighted by the share of its traffic on such routes | `damage.py` |
-| I3 | Oracle "ranks physical links according to the amount of traffic that can be concentrated on them using the available attacker endpoints" (§3.2) | For each directed link, take the N_A endpoint pairs that put the largest share of their traffic on it under the network's routing; the link's score is the attack traffic those pairs would place on it with the equal budget split (Eq. 8). Many links can absorb the whole budget, so ties go to the link the routing uses most (sum of all endpoint pairs' shares on it, its centrality), then more pairs, then lower capacity, then link name. Benign load is not used, because the paper's oracle knows topology and routing, not traffic. (The first version broke ties by name alone and picked a lightly used link; changed during Phase 1) | `recon/oracle.py` |
-| I4 | Damage is measured "against topology G" (§2.4) | Benign and attack traffic are routed together with the network's routing method (ECMP by default, which does not react to traffic). Every link then carries at most its capacity, shared between flows by D11 | `damage.py`, `routing.py` |
+| I3 (accepted, 2026-11-03) | Oracle "ranks physical links according to the amount of traffic that can be concentrated on them using the available attacker endpoints" (§3.2) | For each directed link, take the N_A endpoint pairs that put the largest share of their traffic on it under the network's routing; the link's score is the attack traffic those pairs would place on it with the equal budget split (Eq. 8). Many links can absorb the whole budget, so ties go to the link the routing uses most (sum of all endpoint pairs' shares on it, its centrality), then more pairs, then lower capacity, then link name. Benign load is not used, because the paper's oracle knows topology and routing, not traffic. (The first version broke ties by name alone and picked a lightly used link; changed during Phase 1) | `recon/oracle.py` |
+| I4 (accepted, 2026-11-03) | Damage is measured "against topology G" (§2.4) | Benign and attack traffic are routed together with the network's routing method (ECMP by default, which does not react to traffic). Every link then carries at most its capacity, shared between flows by D11 | `damage.py`, `routing.py` |
 | I5 | Benign traffic (§4.3 input 4) | Gravity model with exponential PoP masses, scaled so the busiest link's offered utilization is a chosen value (an experiment setting). The repo's `*_base_tm_0.00e+00_gravity.txt` files are all zeros | `traffic.py` |
 | I6 | Link capacities (§2.1, c_e) | Topology Zoo files give none, so every link gets 100 Gbps (configurable), as elsewhere in the repo | `topology.py` |
 
@@ -158,6 +189,4 @@ can be changed in one place.
 
 | # | Question | Proposed default | Needed by |
 |---|---|---|---|
-| D26 | Measurement settings of the traceroute attacker whose plans fill the history (D7) | The Phase 2 headline settings: every PoP a vantage point, 10% silent routers; measurement seed = epoch number, so each epoch's plan comes from fresh probes | Phase 3 |
-| D27 | The defender's demand estimate D_t (§4.3 input 4) | D_t = the true benign demand (a perfect estimate), the same matrix every epoch. Estimation error is a later experiment axis | Phase 3 |
 | D10 | Recon lag L versus epoch length T_R (§4.14) | L counted in epochs, swept 0–3 | Phase 4 |
