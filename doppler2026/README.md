@@ -5,12 +5,15 @@ This folder implements the experiment for the draft paper
 optical network so that link-flooding attack plans learned on earlier
 topologies stop working, while benign traffic is still carried safely.
 
-**Status:** Phase 3 built: the defender's feasible links, candidate pool,
-operational and security filters, selection, and a one-epoch experiment, on
-top of Phase 2's five attackers, damage, τ/η, and reconnaissance experiment
-(RQ1–RQ3). Open issues O2-O4 in `docs/decisions.md` need decisions before
-Phase 4. See `CHANGES.md` for what has been done and `PLAN.md` §6 for what
-comes next.
+**Status:** Phase 4 built: the multi-epoch controller with transitions and
+static and churn baselines, on top of Phase 3's defender (feasible links,
+candidate pool, operational and security filters, selection) and Phase 2's
+attackers, damage, τ/η, and reconnaissance experiment (RQ1–RQ3). Defaults
+after open issues O5-O7: no net loss of links, one spare transponder per
+PoP, and a security filter that checks τ, stale damage, and vulnerability.
+See `CHANGES.md` for what has been done and `PLAN.md` §6 for what comes
+next. Where the implementation departs from the draft paper is listed in
+`docs/code_paper_discrepancies.md`.
 
 ## What exists so far
 
@@ -36,6 +39,9 @@ comes next.
 | `security.py` | Security filter T(G') and pairwise τ of the safe pool; history attacker | §4.8–4.9, Eq. 19–24 |
 | `selection.py` | Secondary ranking and seeded random choice | §4.11 |
 | `experiments/defender_epoch.py` | One defender epoch per network (the Phase 3 check) | §4.3–4.11 |
+| `transition.py` | E_add / E_remove, transition order, intermediate states | §4.13, Eq. 32–33 |
+| `controller.py` | The multi-epoch control loop, attacker lag, history; static and churn baselines | §4.3, §4.14 |
+| `run.py`, `configs/` | Run the controller from a JSON config | PLAN §3, §10 |
 
 A minimal example, from the repository root:
 
@@ -72,6 +78,7 @@ print(result.ratio, result.other_ratio)   # about 0.167 (vs D15), 1.0 (vs itself
 | `CHANGES.md` | Every file created or changed for this work, and why |
 | `docs/paper_map.md` | Which module implements which paper section and equation |
 | `docs/decisions.md` | Choices the paper leaves open, and what was decided |
+| `docs/code_paper_discrepancies.md` | Where the implementation departs from what the draft spells out, and promises the results do not yet support |
 | `docs/references.md` | Libraries, methods, and datasets used, with citations |
 | `docs/diagrams/` | Control loop, module map, and data-flow diagrams |
 | `docs/Doppler_security_26.pdf` | The paper draft (kept out of git; never commit or publish it) |
@@ -122,8 +129,26 @@ ruff check --isolated --target-version py313 --line-length 88 \
 ruff format --isolated --check doppler2026
 ```
 
-The multi-epoch Doppler runner (`python -m doppler2026.run`) arrives in
-Phase 4.
+### One defender epoch (Phase 3)
+
+```bash
+python -m doppler2026.experiments.defender_epoch --networks sprint ANS CRL bellCanada surfNet
+```
+
+### Multi-epoch Doppler and baselines (Phase 4)
+
+```bash
+python -m doppler2026.run doppler2026/configs/ANS_doppler.json   # Doppler
+python -m doppler2026.run doppler2026/configs/ANS_static.json    # topology never changes
+python -m doppler2026.run doppler2026/configs/ANS_churn.json     # structural churn, Eq. 18
+```
+
+A config lists only the settings it changes; everything else keeps the
+defaults in `docs/decisions.md`. Results go to
+`data/results/doppler2026/controller/<run_id>/`: `epochs.csv`,
+`candidates.csv`, `transferability.csv`, `transitions.jsonl`, and
+`config.json` with the fully resolved config. The same config reproduces the
+same results exactly (timings aside).
 
 ## Layout
 

@@ -92,3 +92,14 @@ def write_csv(run_dir: Path, name: str, rows: Iterable[Mapping[str, object]]) ->
         writer.writeheader()
         writer.writerows(rows)
     return path
+
+
+def write_jsonl(
+    run_dir: Path, name: str, records: Iterable[Mapping[str, object]]
+) -> Path:
+    """Write one JSON object per line to ``<run_dir>/<name>`` (e.g. ``transitions.jsonl``)."""
+    path = run_dir / name
+    with path.open("w") as handle:
+        for record in records:
+            handle.write(json.dumps(record, default=str) + "\n")
+    return path

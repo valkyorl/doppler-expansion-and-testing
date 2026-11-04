@@ -123,9 +123,16 @@ def betweenness(
     (s ≠ d), using Brandes' algorithm as implemented in NetworkX. NetworkX
     scales undirected results by a constant factor; that does not change the
     ranking, which is all the attacker uses.
+
+    Sources and targets are passed in sorted order: the scores are
+    floating-point sums, and summing in set order (which follows Python's
+    per-process string hashing) could flip near-ties between runs.
     """
     raw = nx.edge_betweenness_centrality_subset(
-        graph, sources=list(sources), targets=list(targets), normalized=False
+        graph,
+        sources=sorted(set(sources)),
+        targets=sorted(set(targets)),
+        normalized=False,
     )
     return {edge_key(u, v): float(b) for (u, v), b in raw.items()}
 

@@ -6,10 +6,13 @@ and checking the experiment. Paper references use § and Eq. numbers. Audit
 references ("audit #n") point to items in
 `docs/knowledge/analysisResults/doppler-paper-vs-code.html`.
 
-Status: **Phase 3 built (2026-11-03).** O2-O4 are decided. With the current
-defaults the one-epoch check passes on sprint and ANS; CRL, bellCanada, and
-surfNet find no safe topology in epoch 1 (every operational candidate keeps
-τ near 1). Next: Phase 4. See `CHANGES.md`.
+Status: **Phase 4 built (2026-11-03):** transitions, the multi-epoch
+controller with static and churn baselines, `run.py`, and configs. After
+open issues O5-O7 the defaults are: no net loss of links, one spare
+transponder per PoP, and a security filter with three conditions (τ, stale
+damage, vulnerability). Departures from the paper are listed in
+`docs/code_paper_discrepancies.md`. Next: Phase 5 (paper evaluations). See
+`CHANGES.md`.
 
 ---
 
@@ -118,7 +121,8 @@ doppler2026/
   results.py            result folders, config.json with provenance, tidy CSVs (§10)
   experiments/          one script per paper evaluation (§7 below)
   figures/              one script per paper figure/table, reading result files (§10)
-  configs/              JSON configs per network/experiment
+  configs/              JSON configs per network/mode (ANS_doppler, ANS_static,
+                        ANS_churn, smoke)
   tests/                unit + regression tests (with a conftest.py that
                         lets pytest import doppler2026)
 ```
@@ -145,7 +149,7 @@ audit item it closes.
 | Security filter | Eq. 21–22 | Compute T(G′) over the last h plans; keep G′ if T(G′) ≤ τ_max | `damage.py` | #2, #3 |
 | Diversity | §4.9, Eq. 23–24 | Pairwise τ(A_i, G_j) matrix over the safe pool; report clusters | `damage.py` | #4 |
 | Selection | §4.11, G4 | Rank by secondary objective (MLU, stretch, changes); keep the acceptable subset; choose uniformly at random with a recorded seed | — | #4 |
-| Transition | §4.13, Eq. 32–33 | Order adds before drops when transponders allow; otherwise label the transition break-before-make. Evaluate the network after each intermediate step (MLU, benign loss) | AlpWolf circuit model | #18, #19 |
+| Transition | §4.13, Eq. 32–33 | Order adds before drops when transponders allow; otherwise label the transition break-before-make. Evaluate the network after each intermediate step (MLU, benign loss) | transponder counts from `candidates.transponders` (not AlpWolf, P10) | #18, #19 |
 | Control loop | §4.14 | Epochs of length T_R. The attacker needs L epochs to finish recon, so the attack at epoch t uses the plan learned at t − L. History of the last h (G_i, A_i). Logs solver time vs T_opt | all of the above | #20, #10 |
 
 ## 5. Changes outside `doppler2026/`
@@ -183,7 +187,7 @@ cannot work correctly without it. All are listed in `CHANGES.md` when made.
 
 Not changed: `simulator.py`, `method_registry.py`, `handlers.py`,
 `attacker.py`, `scripts/Doppler/`, legacy Gurobi modules. The new controller
-uses AlpWolf for transponder and circuit accounting but has its own epoch
+does not use AlpWolf (P10: transponder counts come from `candidates.py`) and has its own epoch
 loop. Fitting history and attackers into `Simulation.perform_sim` would mean
 rewriting it.
 

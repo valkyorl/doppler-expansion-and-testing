@@ -40,7 +40,7 @@ Where each part of *Doppler-security-26* is implemented. Status is one of
 
 | Paper | Concept | Module / function | Status |
 |---|---|---|---|
-| §4.3 | Control loop (Fig. 1) | `controller.py`; diagram in `docs/diagrams/control-loop.md` | planned (diagram done) |
+| §4.3 | Control loop (Fig. 1) | `controller.run` (epochs), `controller.defender_step` (one defender epoch); diagram in `docs/diagrams/control-loop.md` | implemented |
 | §4.3 input 4 | Estimated benign demand D_t | `traffic.benign_demand` (I5) | implemented |
 | §4.4 | Feasible link set E* | `feasibility.feasible_links` (fiber = original topology, 2 fiber hops, optional reach; D16, D6) | implemented (ROADM/spectrum is a pluggable "allow" hook: optical data is a gap) |
 | §4.5, Eq. 11 | Transponder limit | `candidates.transponders` (D18), MILP row in `candidates.py` | implemented |
@@ -49,13 +49,13 @@ Where each part of *Doppler-security-26* is implemented. Status is one of
 | §4.7, Eq. 16 | U_max | `candidates.py` (MILP routing), `filters.operational_check` (network's routing) | implemented |
 | §4.7, Eq. 17 | Path stretch S_max | `filters.operational_check` (km or hops; longest ECMP path; against G_0; D19) | implemented (see open issue O4) |
 | §4.7 | Connectivity and redundancy | `filters.operational_check` (connected and routable; 2-edge-connectivity optional, D20) | implemented |
-| §4.8, Eq. 18 | Structural-churn baseline | objective `min_overlap` in `candidates.py`; experiment in `experiments/transferability.py` | objective implemented; experiment planned |
-| §4.8, Eq. 19–21 | History and T(G′) | `security.HistoryEntry`, `security.history_plan` (D7, D26), `security.security_check`; multi-epoch history in `controller.py` | implemented (one epoch); controller planned |
+| §4.8, Eq. 18 | Structural-churn baseline | objective `min_overlap` in `candidates.py`; `ControllerConfig.mode = "churn"`; comparison experiment in `experiments/transferability.py` | baseline implemented; Phase 5 experiment planned |
+| §4.8, Eq. 19–21 | History and T(G′) | `security.HistoryEntry`, `security.history_plan` (D7, D26), `security.security_check`; history of the last h states including G_t in `controller.run` (D30) | implemented |
 | §4.8, Eq. 22 | Security filter T(G′) ≤ τ_max | `security.security_check` | implemented (see open issue O3) |
 | §4.9, Eq. 23–24 | Safe set and pairwise τ | `security.pairwise_transferability`; safe set in `experiments/defender_epoch.py` | implemented |
 | §4.10 | Local and expanded candidate sets | `candidates.variable_links` (local = old "conservative" + history targets, liberal, expanded; D23) | implemented |
 | §4.11, Eq. 25–31 | Pool enumeration and random selection | `candidates.generate` (no-good cuts, D22 objectives), `selection.select` (D9, D24) | implemented |
 | §4.12 | Optimization time budget T_opt | `CandidateConfig.time_limit` (D25) | implemented |
-| §4.13, Eq. 32–33 | E_add / E_remove, make-before-break | `transition.py` | planned |
+| §4.13, Eq. 32–33 | E_add / E_remove, make-before-break | `transition.order_changes` (D31), `transition.evaluate_transition` (flow-level intermediate states) | implemented |
 | §4.13 | Packet-level convergence and loss | testbed replay of `transitions.jsonl` | gap |
-| §4.14 | Reconfiguration interval T_R vs recon lag | `controller.py` | planned |
+| §4.14 | Reconfiguration interval T_R vs recon lag | `ControllerConfig.recon_lag` (L in epochs, D10); stale-plan damage D(A_{t-L}, G_t) per epoch | implemented (epochs are abstract; real timings are Phase 5) |

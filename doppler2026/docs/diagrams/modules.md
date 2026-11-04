@@ -33,38 +33,39 @@ flowchart LR
             recon_eval["recon_eval.py"]
             defender_epoch["defender_epoch.py"]
         end
+        configs[("configs/*.json")]
         results["results.py"]
     end
 
     subgraph shared["src/onset/ (existing)"]
         te["te/engine.py"]
-        wolf["alpwolf.py"]
     end
 
     grc[["GraphRicciCurvature"]]
 
     run --> controller
-    controller --> candidates & filters & security & selection & transition & traffic
+    run --> configs & results
+    controller --> candidates & filters & security & selection & transition & traffic & damage
     controller --> recon
     candidates --> feasibility & topo
     filters --> routing
     security --> damage & oracle & tr
     damage --> routing & oracle
-    transition --> wolf & routing
+    transition --> candidates & routing
     recon --> plans & routing
     rtt --> grc
     tr & rtt --> inferred
     inferred --> plans
     metrics --> oracle & routing
     recon_eval --> recon & damage & traffic & results
-    defender_epoch --> feasibility & candidates & filters & security & selection & traffic & results
+    defender_epoch --> controller & security & traffic & results
     routing --> te
     traffic --> routing
     oracle & rnd & damage --> topo
     plans --> model
 
     classDef existing stroke-dasharray: 5 5
-    class te,wolf existing
+    class te existing
 ```
 
 `model.py` (shared dataclasses) is used by nearly every module; only the

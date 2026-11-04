@@ -21,6 +21,10 @@ The model, over a set L of IP links that may be active:
   utilization of every link and is part of the objective.
 - At least one change: the current topology is excluded, and each found
   candidate is excluded before the next solve (no-good cuts).
+- No net loss of links (``keep_link_count``, default on; O2 option c): at
+  least as many active links as the current topology. Without it the
+  change-minimizing objectives only removed links, and each removal made
+  attacks more damaging (O7).
 
 Every ordered PoP pair has positive benign demand (gravity model), so any
 feasible solution is connected. The operational filter checks it again.
@@ -31,6 +35,13 @@ Objective (decision D22), one of:
   weights w_e drawn uniformly from ``weight_range`` before every solve. The
   fixed objective below finds near-copies of the same minimal change; random
   weights make each solve prefer different changes.
+- ``"security_guided"`` (O5): as ``random_weights``, but each change's
+  weight is lowered by ``security_weight`` x g_e, where g_e in [0, 1] is the
+  share of the history plans' attack traffic that the change alone would move
+  off their target links (``security.attack_guidance``). A stand-in for
+  Eq. 25's "minimize T(G')", which is not linear; the security filter still
+  checks the true T(G'). A weight can become negative, so the MILP may prefer
+  making such a change to making none.
 - ``"changes_plus_mlu"``: 2 · (number of changes) + mlu, the objective of the
   existing open Doppler (``onset.open_doppler``).
 - ``"min_overlap"``: |E_t ∩ E'| (Eq. 18), the old Gurobi Doppler's objective
@@ -48,9 +59,11 @@ dropped; links that may be added come from E* (``feasibility.py``):
   neighbour of u and a neighbour of v.
 - ``"expanded"``: all of E*.
 
-Transponders (D18): txp(v) is v's degree in the original topology, plus
-``spare_transponders`` at the ``spare_fraction`` most central PoPs (like the
-old Doppler's ``dynamic_doppler`` allocation). New links get the median link
+Transponders (D18, revised after O7): txp(v) is v's degree in the original
+topology, plus ``spare_transponders`` at the ``spare_fraction`` most central
+PoPs (like the old Doppler's ``dynamic_doppler`` allocation). Default: one
+spare at every PoP; with none, almost every move made the network more
+vulnerable (O7). New links get the median link
 capacity of the original topology (D17).
 
 Solver (D25): HiGHS with a fixed seed, so runs reproduce.
@@ -61,7 +74,7 @@ from __future__ import annotations
 import math
 import statistics
 import time
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 
 import highspy
@@ -74,7 +87,7 @@ from .recon.inferred import Edge, edge_key
 from .topology import topology_id as compute_topology_id
 
 CANDIDATE_SETS = ("local", "liberal", "expanded")
-OBJECTIVES = ("random_weights", "changes_plus_mlu", "min_overlap")
+OBJECTIVES = ("random_weights", "security_guided", "changes_plus_mlu", "min_overlap")
 
 
 @dataclass(frozen=True)
@@ -93,8 +106,16 @@ class CandidateConfig:
     objective: str = "random_weights"
     weight_range: tuple[float, float] = (1.0, 3.0)
     """Range of the per-link change weights (mean 2, as in changes_plus_mlu)."""
-    spare_transponders: int = 0
-    spare_fraction: float = 0.1
+    keep_link_count: bool = True
+    """No net loss of links: a candidate has at least as many links as the
+    current topology, so transponders are re-paired rather than released
+    (O2 option c, chosen after O7)."""
+    security_weight: float = 4.0
+    """Bonus per unit of guidance for ``security_guided`` (twice the mean change weight)."""
+    spare_transponders: int = 1
+    """Spare transponders per chosen PoP (D18, revised after O7)."""
+    spare_fraction: float = 1.0
+    """Share of PoPs, most central first, that get the spares (1.0: all)."""
     seed: int = 0
 
     def __post_init__(self) -> None:
@@ -161,10 +182,16 @@ def link_capacities(original: nx.Graph, links: Iterable[Edge]) -> dict[Edge, flo
 def build_topology(
     original: nx.Graph, links: Iterable[Edge], capacities: Mapping[Edge, float]
 ) -> nx.Graph:
-    """The topology with ``links`` active: original PoPs (with coordinates), C_e."""
+    """The topology with ``links`` active: original PoPs (with coordinates), C_e.
+
+    Links are added in sorted order. Edge order matters: ECMP keeps the first
+    few equal-cost paths (the path budget), and their order follows the
+    order edges were added. Adding them in set order made results depend on
+    Python's per-process string hashing.
+    """
     graph = nx.Graph()
     graph.add_nodes_from(original.nodes(data=True))
-    for e in links:
+    for e in sorted(links):
         graph.add_edge(*e, capacity=capacities[e])
     graph.graph.update(original.graph)
     return graph
@@ -214,6 +241,7 @@ class _Model:
         txp: Mapping[str, int],
         demand: Mapping[Pair, float],
         u_max: float,
+        min_links: int = 0,
     ) -> None:
         self.links = links
         self.current = current
@@ -246,6 +274,9 @@ class _Model:
             entries = {i: 1.0 for i, e in enumerate(links) if v in e}
             if entries:
                 add(entries, -math.inf, float(txp[v]))
+        # No net loss of links (O2 option c, O7): at least min_links active.
+        if min_links:
+            add({i: 1.0 for i in range(len(links))}, float(min_links), math.inf)
         # Eq. 12-14: flow conservation, per source s and node v:
         # inflow - outflow = demand(s, v), and -sum of demand at s.
         for s in sources:
@@ -335,13 +366,16 @@ def generate(
     config: CandidateConfig,
     *,
     targets: Iterable[Pair] = (),
+    guidance: Callable[[tuple[Edge, ...]], Mapping[Edge, float]] | None = None,
 ) -> CandidatePool:
     """Enumerate up to K candidate topologies around ``current`` (§4.11, Eq. 31).
 
     ``original`` is the network's original topology (fiber graph, transponder
     counts, link capacities); ``feasible`` is E*; ``demand`` is the benign
     estimate D_t; ``targets`` are the links attacked by plans in the history
-    (they widen the local candidate set, D23).
+    (they widen the local candidate set, D23). ``guidance`` maps the
+    variable links to their security guidance g_e; it is required by the
+    ``security_guided`` objective.
     """
     started = time.perf_counter()
     links = variable_links(current, feasible, targets, config)
@@ -354,6 +388,7 @@ def generate(
         transponders(original, config),
         demand,
         config.u_max,
+        min_links=len(current_links) if config.keep_link_count else 0,
     )
     highs = highspy.Highs()
     highs.setOptionValue("output_flag", False)
@@ -365,6 +400,12 @@ def generate(
     highs.passModel(model.lp)
     rng = np.random.default_rng(config.seed)
     x_cols = np.arange(len(links), dtype=np.int32)
+    bonus = np.zeros(len(links))
+    if config.objective == "security_guided":
+        if guidance is None:
+            raise ValueError("The security_guided objective needs guidance")
+        scores = guidance(links)
+        bonus = config.security_weight * np.array([scores.get(e, 0.0) for e in links])
 
     def exclude(selected: frozenset[Edge]) -> None:
         coeffs, low = model.no_good_cut(selected)
@@ -379,8 +420,8 @@ def generate(
         remaining = config.time_limit - (time.perf_counter() - started)
         if remaining <= 0:
             break
-        if config.objective == "random_weights":
-            draws = rng.uniform(*config.weight_range, size=len(links))
+        if config.objective in ("random_weights", "security_guided"):
+            draws = rng.uniform(*config.weight_range, size=len(links)) - bonus
             cost, offset = model.change_costs(dict(zip(links, draws, strict=True)))
         elif config.objective == "changes_plus_mlu":
             cost, offset = model.change_costs(dict.fromkeys(links, 2.0))

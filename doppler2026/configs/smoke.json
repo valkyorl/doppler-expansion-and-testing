@@ -1,0 +1,11 @@
+{
+  "_comment": "Quick check: three epochs on sprint with a small pool.",
+  "network": "sprint",
+  "epochs": 3,
+  "mode": "doppler",
+  "defender": {
+    "candidates": {
+      "pool_size": 10
+    }
+  }
+}

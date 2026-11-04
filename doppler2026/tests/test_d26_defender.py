@@ -82,11 +82,18 @@ def test_feasible_links_respect_hops_reach_and_optical_check():
 def test_transponders_and_capacities_follow_d17_d18():
     graph = chain()
     graph.edges["c", "d"]["capacity"] = 300.0
-    assert cand.transponders(graph, cand.CandidateConfig()) == {
+    assert cand.transponders(graph, cand.CandidateConfig(spare_transponders=0)) == {
         "a": 1,
         "b": 2,
         "c": 2,
         "d": 1,
+    }
+    # Default (D18 revised after O7): one spare at every PoP.
+    assert cand.transponders(graph, cand.CandidateConfig()) == {
+        "a": 2,
+        "b": 3,
+        "c": 3,
+        "d": 2,
     }
     spares = cand.transponders(
         graph, cand.CandidateConfig(spare_transponders=2, spare_fraction=0.5)
@@ -224,7 +231,8 @@ def test_operational_filter_reasons():
 # Security filter and diversity (Eq. 21-24)
 
 
-SECURITY = SecurityConfig()
+# τ-only settings: these tests build history entries without own_damage.
+SECURITY = SecurityConfig(max_stale_damage_ratio=None, max_vulnerability_ratio=None)
 
 
 def traceroute_plan(graph, attack, seed=0):
@@ -244,7 +252,11 @@ def test_plan_on_its_unchanged_topology_has_tau_one():
         attack,
         ROUTING,
         DAMAGE,
-        SecurityConfig(oracle_comparisons=True),
+        SecurityConfig(
+            oracle_comparisons=True,
+            max_stale_damage_ratio=None,
+            max_vulnerability_ratio=None,
+        ),
         seed=1,
     )
     (comparison,) = result.comparisons
@@ -276,7 +288,9 @@ def test_security_check_takes_the_worst_history_plan():
         HistoryEntry("here", traceroute_plan(graph, attack)),
     ]
     benign = uniform(graph, 5.0)
-    config = SecurityConfig(history_length=2)
+    config = SecurityConfig(
+        history_length=2, max_stale_damage_ratio=None, max_vulnerability_ratio=None
+    )
     result = security_check(
         graph, history, benign, attack, ROUTING, DAMAGE, config, seed=1
     )
@@ -290,7 +304,9 @@ def test_security_check_takes_the_worst_history_plan():
         attack,
         ROUTING,
         DAMAGE,
-        SecurityConfig(history_length=1),
+        SecurityConfig(
+            history_length=1, max_stale_damage_ratio=None, max_vulnerability_ratio=None
+        ),
         seed=1,
     )
     assert len(only_last.comparisons) == 1
@@ -343,6 +359,115 @@ def test_history_of_unknown_mechanism_is_refused():
             SECURITY,
             seed=1,
         )
+
+
+def test_stale_damage_limit_rejects_a_plan_that_got_stronger():
+    """O7: the stale plan must not do more damage than on its own topology.
+
+    The plan is learned on a dumbbell with a parallel bridge a2-b2; on the
+    plain dumbbell its traffic all crosses a1-b1, so it does more damage.
+    """
+    from doppler2026.security import history_entry
+
+    learned_on = dumbbell()
+    learned_on.add_edge("a2", "b2", capacity=100.0)
+    candidate = dumbbell()
+    attack = AttackConfig(budget=200.0, n_pairs=5)
+    benign = uniform(candidate, 5.0)
+    entry = history_entry(
+        learned_on, traceroute_plan(learned_on, attack), benign, ROUTING, DAMAGE
+    )
+    result = security_check(
+        candidate,
+        [entry],
+        benign,
+        attack,
+        ROUTING,
+        DAMAGE,
+        SecurityConfig(tau_max=10.0, max_vulnerability_ratio=None),
+        seed=1,
+    )
+    assert result.damage_ratio > 1.0
+    assert result.reasons == ("stale_damage",) and not result.passed
+    looser = security_check(
+        candidate,
+        [entry],
+        benign,
+        attack,
+        ROUTING,
+        DAMAGE,
+        SecurityConfig(
+            tau_max=10.0, max_stale_damage_ratio=None, max_vulnerability_ratio=None
+        ),
+        seed=1,
+    )
+    assert looser.passed
+
+
+def test_vulnerability_limit_compares_fresh_damage_with_a_reference():
+    from doppler2026.security import history_entry
+
+    graph = dumbbell()
+    attack = AttackConfig(budget=200.0, n_pairs=5)
+    benign = uniform(graph, 5.0)
+    entry = history_entry(
+        graph, traceroute_plan(graph, attack), benign, ROUTING, DAMAGE
+    )
+    config = SecurityConfig(tau_max=10.0, max_vulnerability_ratio=1.0)
+    same = security_check(
+        graph,
+        [entry],
+        benign,
+        attack,
+        ROUTING,
+        DAMAGE,
+        config,
+        seed=1,
+        vulnerability_reference=entry.own_damage,
+    )
+    assert same.passed  # as vulnerable as the reference, not more
+    stricter = security_check(
+        graph,
+        [entry],
+        benign,
+        attack,
+        ROUTING,
+        DAMAGE,
+        config,
+        seed=1,
+        vulnerability_reference=entry.own_damage / 2,
+    )
+    assert stricter.reasons == ("vulnerability",)
+    with pytest.raises(ValueError, match="reference"):
+        security_check(graph, [entry], benign, attack, ROUTING, DAMAGE, config, seed=1)
+
+
+def test_pool_keeps_the_link_count():
+    graph = dumbbell()
+    pool = cand.generate(
+        graph,
+        graph,
+        feasible_links(graph),
+        uniform(graph, 1.0),
+        cand.CandidateConfig(
+            pool_size=10,
+            candidate_set="expanded",
+            spare_transponders=1,
+            spare_fraction=1.0,
+        ),
+    )
+    assert pool.candidates
+    assert all(len(c.links) >= graph.number_of_edges() for c in pool.candidates)
+    removals = cand.generate(
+        graph,
+        graph,
+        feasible_links(graph),
+        uniform(graph, 1.0),
+        cand.CandidateConfig(
+            pool_size=10, candidate_set="expanded", keep_link_count=False
+        ),
+    )
+    assert any(len(c.links) < graph.number_of_edges() for c in removals.candidates)
 
 
 def test_pairwise_matrix_covers_every_ordered_pair():

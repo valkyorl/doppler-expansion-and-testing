@@ -17,6 +17,7 @@ entries are not used in code until confirmed.
 | P7 | The path-based formulations (`onset`, `onset_v2`) keep their own copy of the demand-direction bug | Phase 0, 2026-10-30 | The experiment uses only the edge-flow formulation; per the "change only what is needed" rule, the path-based data builder is left alone. Recorded so it is not mistaken for fixed |
 | P8 | Install GraphRicciCurvature 0.6.1 with `--no-deps`, plus its real dependencies (networkit, POT, python-louvain) | User, 2026-10-30 (Phase 2) | The library pins `scipy<=1.13.1`, which exists only for Python ≤ 3.12; moving to 3.14 would not help, and 0.6.1 is the newest release. The library's code never imports SciPy, so the project keeps SciPy 1.18.1. Tests check its curvature against hand-computed values. Rejected: a separate Python 3.12 environment (an older Python was not acceptable); our own implementation (would not be the published tool) |
 | P9 | The candidate MILP is built in `doppler2026/candidates.py`, with flow aggregated per source PoP, instead of reusing `open_doppler._build_edge_flow_milp` | Plan, 2026-11-03 (Phase 3) | The existing builder has one flow per source-destination pair. With every link usable (Eq. 12-14) it has 199k variables on CRL and found no solution in 60 s; per-source flow is an exact reformulation (any per-source flow splits into per-pair flows) and is about N times smaller: every pool of 50 then fills within T_opt on all five networks (3.5-49 s). Consequence: the planned shared-code change (PLAN §5 item 3, per-link capacity in `open_doppler`) is not needed and was not made; `open_doppler` is unchanged |
+| P10 | Transitions take transponder counts from `candidates.transponders`, not from AlpWolf | Plan, 2026-11-03 (Phase 4) | PLAN §4 planned to reuse AlpWolf's circuit model. The transition only needs per-PoP transponder counts, which `candidates.transponders` already gives by the same rule as AlpWolf (one per original link, plus spares, D18), and AlpWolf loads its topology from files. AlpWolf is unchanged and unused |
 
 ## Accepted parameter choices
 
@@ -44,7 +45,7 @@ later means editing a config value and re-running the affected experiments
 | D9 | "Acceptable subset" for random selection (§4.11) | Candidates whose secondary score is within 10% of the best; uniform seeded choice among them | Named when built in Phase 3 | User, 2026-11-03 |
 | D16 | Fiber graph G_F and feasible links E* (§4.4); no fiber data exists | Each link of the network's original topology is one fiber, as in the existing AlpWolf model. E* = original links plus PoP pairs exactly two fiber hops apart, which is the old Doppler's "max" candidate set (`preprocessing.compute_candidate_links`). An optional km limit (D6). ROADM and spectrum checks stay a pluggable "allowed" hook: no ROADM data exists, and `network_model.py` names ROADMs but never models them | Named when built in Phase 3 | User, 2026-11-03 |
 | D17 | Capacity C_e of a newly created link (Eq. 15–16) | One circuit at the network's median link capacity; existing links keep their own capacity. (The old Doppler gave every circuit a fixed 100 Gb/s, which matches the default capacity of our topologies) | Named when built in Phase 3 | User, 2026-11-03 |
-| D18 | Transponders txp(v) (§4.5, Eq. 11); no placement data exists | txp(v) = degree of v in the original topology (one per link, as in AlpWolf; no spares, which §4.5 says are not required). Spares are an experiment axis, placed like the old Doppler's `dynamic_doppler` strategy (extra transponders at the highest-betweenness PoPs). The files in `data/txp/` come from the legacy `rank_transponder_alloc.py` and are not used by default | Named when built in Phase 3 | User, 2026-11-03 |
+| D18 | Transponders txp(v) (§4.5, Eq. 11); no placement data exists | **Revised 2026-11-03 (user, after O7):** txp(v) = degree of v in the original topology plus **one spare transponder at every PoP** (`spare_transponders = 1`, `spare_fraction = 1.0`). Without spares almost every reconfiguration made the network more vulnerable (O7). Spares remain an experiment axis (`experiments/envelope.py`). Originally (2026-11-03): no spares, spares placed like the old Doppler's `dynamic_doppler` as an axis. The files in `data/txp/` come from the legacy `rank_transponder_alloc.py` and are not used | `CandidateConfig.spare_transponders`, `CandidateConfig.spare_fraction` | User, 2026-11-03 |
 | D19 | Path stretch ℓ(P) (Eq. 17) | ℓ = great-circle km along the path; under ECMP the longest path a demand uses counts; reference P⁰ = the original topology G_0. Hop count as an alternative setting | Named when built in Phase 3 | User, 2026-11-03 |
 | D20 | Connectivity and redundancy (§4.7) | Connected, every demand routable. 2-edge-connectivity is a setting, off by default, always reported | Named when built in Phase 3 | User, 2026-11-03 |
 | D21 | Attack budget R_A inside the security filter (Eq. 21) | 2× median link capacity; budget sweeps as an experiment axis | Named when built in Phase 3 | User, 2026-11-03 |
@@ -55,6 +56,10 @@ later means editing a config value and re-running the affected experiments
 | D26 | Measurement settings of the traceroute attacker whose plans fill the history (D7) | The Phase 2 headline settings: every PoP a vantage point, 10% silent routers; measurement seed = epoch number, so each epoch's plan comes from fresh probes | Named when built in Phase 3 | User, 2026-11-03 |
 | D27 | The defender's demand estimate D_t (§4.3 input 4) | D_t = the true benign demand (a perfect estimate), the same matrix every epoch. Estimation error is a later experiment axis | Named when built in Phase 3 | User, 2026-11-03 |
 | D28 | Whether the security filter also compares each plan against both oracles | **Off by default.** The comparisons do not affect which candidates pass (τ uses the attacker re-measuring, O3 option e) and took about 97% of the filter's time (bellCanada, one candidate: 26.6 s with them, 0.9 s without), because the benign-aware oracle simulates one attack per link. Turn on for analysis runs, which then save `oracle_benign_ratio` and `oracle_ratio`. Runs made before this change (`defender_epoch/phase3-o3e-2026-11-03`, `phase3-smax3-2026-11-03`) have them on | `SecurityConfig.oracle_comparisons = False` | User, 2026-11-03 |
+| D10 | Recon lag L versus epoch length T_R (§4.14) | L counted in epochs, default L = 1: the attack during epoch t uses the plan learned on G_{t-1}, so stale-plan damage is D(A_{t-L}, G_t). Swept 0-3 (L = 0 is the no-defense reference: the attacker measures and attacks within one epoch) | `ControllerConfig.recon_lag` | User, 2026-11-03 |
+| D29 | What the controller does when an epoch has no safe topology | Stay on the current topology, log the epoch as having no safe topology, and try again next epoch (§4.15: such networks are outside the useful envelope). The alternative, moving to the least-bad operational candidate, was rejected | `ControllerConfig` (no setting; the behavior is fixed) | User, 2026-11-03 |
+| D30 | Which states the history holds (Eq. 19-20) | The last h states including the current one, G_t ... G_{t-h+1}: the attacker most likely holds a plan for the running topology, so a candidate must invalidate it too. Eq. 19 as written (G_{t-1} ... G_{t-h}) leaves G_t out | `SecurityConfig.history_length` (h) | User, 2026-11-03 |
+| D31 | Transition order when transponders prevent a strict make-before-break (§4.13) | Mixed order: (1) add every new link whose transponders are free; (2) remove only the old links whose transponders the remaining additions need; (3) add those; (4) remove the rest. Labelled make-before-break only if step 2 is empty. Every intermediate state is measured. The alternative (all-or-nothing break-before-make) was rejected | `transition.py` (no setting) | User, 2026-11-03 |
 
 ### Fixed bug in shared code (E1)
 
@@ -180,6 +185,16 @@ can be changed in one place.
 | I16 | "we construct the attack plan A_i associated with G_i" (§4.9, Eq. 24) | A_i is learned on G_i by the same attacker that fills the history (D7, D26), with the epoch's measurement seed | `experiments/defender_epoch.py`, `security.pairwise_transferability` |
 | I17 | Utilization in the MILP (Eq. 16) | The MILP also minimizes its own max utilization (weight 1, next to change weights of about 2, as the existing open Doppler does), so among equally cheap changes it prefers the less loaded one. Its utilization is under multicommodity routing; the operational filter re-checks with the network's routing | `candidates.py` |
 
+
+## Interpretations made in Phase 4 (need confirmation)
+
+| # | Paper text | Interpretation | Where |
+|---|---|---|---|
+| I18 | "These plans can be obtained by applying the reconnaissance-to-attack procedure from Section 3 to each network state" (§4.8) | The defender's history holds exactly the plans the simulated attacker learns (same mechanism, settings, and seeds): the defender's model of the attacker is correct. A mismatch (the attacker uses another mechanism than the defender assumes) is a later experiment axis | `controller.run` |
+| I19 | τ of the attack running in epoch t | τ(A_{t-L}, G_t) uses the attacker's own plan learned on G_t in epoch t as the fresh plan (Eq. 1); with L = 0 it is 1 by construction | `controller.run` |
+| I20 | Transition states (§4.13) | The network is measured after each step of D31's order (not after each single action), with benign traffic only and the network's routing. Actions are numbered, not timed: real durations are a gap (PLAN §9) | `transition.evaluate_transition` |
+| I21 | Seeds over many epochs | The MILP weights of epoch t use `candidates.seed + t`; the attacker measures with seed t and re-measures candidates with t + 1; one generator, seeded once, drives every selection | `controller.run` |
+
 ## Open issues found in Phase 2
 
 - **O1. The oracle is not an upper bound on damage.** The paper calls the
@@ -221,6 +236,9 @@ the numbers.
   (c) no net loss of links, (d) weight removals more than additions.
   **Decided 2026-11-03 (user): option (a), keep it for now.** Phase 4 records
   the link count per epoch, so the choice can be revisited with data.
+  **Revisited 2026-11-03 (user), after O7:** option (c), no net loss of links
+  (`CandidateConfig.keep_link_count`, default on), with spare transponders
+  compared as a variant.
 - **O3. The security filter does not bind on most networks.** With the
   benign-aware oracle as the reference (D15), the history plan's τ on the
   unchanged topology it was learned on is already below τ_max = 0.5 on
@@ -276,6 +294,98 @@ the numbers.
   additive latency allowance, l(P') <= S_max x l(P⁰) + slack, would model
   realistic latency budgets better (see "Possible paper changes").
 
+## Open issues found in Phase 4
+
+From the 10-epoch ANS runs (`controller/phase4-ANS-doppler`, `-static`,
+`-churn`; the Doppler run reproduced exactly under another hash seed).
+
+- **O5. Doppler stalls after two changes on ANS.** Epochs 0 and 1 each
+  remove one link (25 -> 24 -> 23 links) and cut the stale plan's τ to 0.29
+  and 0.16. From epoch 2 on, every operational candidate keeps τ >= 0.97
+  against the plan learned on the current topology, so none is safe; the
+  network stays put (D29), and from epoch 3 the stale attack has τ = 1.0, the
+  same as the static network. Re-running epoch 2's decision with wider
+  choices found no safe candidate either (best τ): pool of 150 (0.97),
+  liberal set (0.98), expanded set (0.98), 1 spare transponder at every PoP
+  (0.93), expanded set plus spares (0.93), and even with no stretch limit
+  (0.89). The candidates that remove the attacked link fail the stretch
+  limit (6.6-17.8x), and when it is removed anyway the attacker's pairs
+  reroute over another bottleneck and keep about 89% of a fresh plan's
+  damage. The MILP prefers the fewest changes, so its candidates stay close
+  to G_t, and one or two changes do not move the attacked cut. Possible
+  directions (not yet discussed): a generation objective that targets the
+  attacked links or cut (§4.11 states the problem as minimizing T(G'); the
+  generate-then-filter design approximates it), requiring larger changes, a
+  higher τ_max, or reporting ANS as near the edge of the deployment envelope
+  (§4.15).
+  **Decided 2026-11-03 (user): steer candidate generation toward the attacked
+  links** (a security-guided MILP objective standing in for Eq. 25's
+  minimize T(G')). Its exact form is a new heuristic: built as a selectable
+  objective and shown to the user before it becomes the default. The effect
+  on the paper's claims is in `docs/code_paper_discrepancies.md`.
+  **Result (2026-11-03): built as the `security_guided` objective; it does not
+  fix the stall, so it is not the default.** At ANS epoch 2 (weights 2, 4, 8;
+  local and expanded sets) no candidate is safe; with the stretch limit
+  ignored the best τ is 0.94. The guidance (share of attack traffic moved off
+  the target) does not predict τ (correlation -0.06): moving the stale plan's
+  traffic also weakens the fresh attacker, so the ratio stays near 1. See O7.
+- **O6. The structural-churn baseline never changes.** With the Eq. 18
+  objective the MILP finds only 2-3 candidates per 60 s, all large rewirings
+  (8 links added, 16 removed), and all fail the stretch limit, so the churn
+  run equals the static one. A comparable baseline could instead pick, from
+  the same pool Doppler uses, the operational candidate with the least
+  overlap with E_t (structure instead of security as the selection rule).
+  **Decided 2026-11-03 (user): that fix.** Churn applies Eq. 18 as the
+  selection rule over the operationally feasible pool, with no security
+  filter; the pool is generated without security guidance, so the baseline
+  uses structure only.
+
+- **O7. Reconfiguring makes the network more vulnerable.** Over 10 epochs on
+  ANS, the mean benign loss caused by the stale attack is 2.6% on the static
+  network, 13.3% under Doppler, and 14.8% under the churn baseline (O6 fix);
+  the fresh attacker's damage grows the same way (Doppler: 2.6% on G_0, 6.7% on
+  G_1, 16.4% on G_2). Both reconfiguring modes only remove links (25 -> 23 and
+  25 -> 19; O2), so each move removes capacity and alternative paths. τ, a
+  ratio against a fresh attacker on the same topology, cannot see this: a
+  topology can have low τ while every attack on it does more damage. The
+  stale plans also become stronger on later topologies (on ANS epoch 2's
+  candidates, the worst history plan does 1.4-2x its original damage, median).
+  Related: O2 (removal-only moves; deferred to Phase 4 data, which this
+  is), G1's wording ("produce substantially less damage") against Eq. 1's
+  ratio, and G2.
+  **Decided 2026-11-03 (user): both directions.** (1) No net loss of links
+  (O2 option c, `CandidateConfig.keep_link_count = True`). (2) A stale-damage
+  limit in the security filter: every history plan must do at most the
+  damage it did on its own topology, D(A_i, G') <= D(A_i, G_i)
+  (`SecurityConfig.max_stale_damage_ratio = 1.0`). An optional vulnerability
+  limit (the fresh attacker's damage on G' against its damage on G_0,
+  `max_vulnerability_ratio`) is off by default. Spare transponders at the
+  start and a recon lag of 2 are compared as variants.
+  **Result (ANS, 10 epochs, runs `controller/o7-ANS-*`):** mean benign loss
+  from the stale attack: static 2.6%; Doppler before 13.3%; no net loss, no
+  spares 11.5% (1 move); with 1 spare transponder at every PoP 6.6% (4 moves,
+  25 -> 28 links); with 2 spares at the top 25% PoPs 11.5% (2 moves). Still
+  worse than static in every variant: a swap that keeps the link count, or
+  even adds links, can create a weaker point that the attacker's *next*
+  plan uses (fresh attacker's damage on Doppler's topologies: 3.1% -> 10.7%
+  with 1 spare). The stale-damage limit only bounds old plans; the optional
+  vulnerability limit bounds the fresh attacker.
+  **Follow-up runs (`controller/o7b-ANS-*`):** with 1 spare transponder at
+  every PoP and the vulnerability limit at 1.0 (no candidate may let a fresh
+  attacker do more damage than on G_0), the stale attack's mean benign loss is
+  2.4% (max 2.6%), at or below the static network's 2.6% in every epoch.
+  Doppler moves only twice in 10 epochs (epochs 6 and 9; rejections: τ 167,
+  vulnerability 153, stale damage 42, passed 5), and after the first move the
+  stale plan's damage falls to 1.0% (τ 0.40) for one epoch. Recon lag 2
+  (no spares) barely differs from lag 1 (10.8% against 11.5%): it only
+  delays when the attacker catches up, and the network stays put either way.
+  **Decided 2026-11-03 (user): both are defaults.** The vulnerability limit is
+  on at 1.0 (`SecurityConfig.max_vulnerability_ratio = 1.0`; the reference is
+  the attacker's damage on the original topology) and every PoP has one
+  spare transponder (D18 revised). With the no-net-loss constraint and the
+  stale-damage limit, the security filter now has three conditions: τ, stale
+  damage, and vulnerability.
+
 ## Possible paper changes (for the authors)
 
 Places where the experiment suggests the draft's text could change. None is
@@ -298,4 +408,3 @@ implemented unless a decision above says so.
 
 | # | Question | Proposed default | Needed by |
 |---|---|---|---|
-| D10 | Recon lag L versus epoch length T_R (§4.14) | L counted in epochs, swept 0–3 | Phase 4 |

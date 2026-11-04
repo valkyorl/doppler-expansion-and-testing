@@ -4,6 +4,179 @@ Every file created or changed for the Doppler 2026 experiment, inside or
 outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first.
 
+## 2026-11-03: New defaults: vulnerability limit and one spare transponder per PoP
+
+**Behavior change** (user, after the O7 runs): every run now uses
+
+- `SecurityConfig.max_vulnerability_ratio = 1.0` (`security.py`; was None):
+  a candidate is rejected if a fresh attacker would do more damage on it
+  than on the original topology;
+- `CandidateConfig.spare_transponders = 1`, `spare_fraction = 1.0`
+  (`candidates.py`; was 0 and 0.1): one spare transponder at every PoP (D18
+  revised).
+
+Together with the no-net-loss constraint and the stale-damage limit, these
+were the only combination that kept Doppler at or below the static network
+on ANS (2.4% against 2.6% mean benign loss from the stale attack).
+
+- Tests (`test_d26_defender.py`): the transponder test checks the degree-only
+  counts explicitly and the new default (+1 at every PoP); the τ-only and
+  stale-damage tests turn the vulnerability limit off explicitly, since they
+  give no reference.
+- Docs: `docs/decisions.md` (D18 revised, O7 decided),
+  `docs/code_paper_discrepancies.md` (A6 now covers both damage conditions;
+  B5 records the spare transponder), `PLAN.md` (status), `README.md`
+  (status and the discrepancies document in "Where to read").
+- Runs made before this change used the earlier defaults; their
+  `config.json` records which.
+
+## 2026-11-03: Vulnerability limit and recon lag 2 on ANS
+
+Runs `controller/o7b-ANS-keep_spare1_vuln` and `o7b-ANS-keep_lag2` (10
+epochs; new run names because `o7-ANS-keep_lag2` holds an interrupted,
+empty run). No code changed.
+
+| Variant | Moves | Stale-attack benign loss, mean (max) | Fresh attacker, mean |
+|---|---|---|---|
+| Static | 0 | 2.6% (2.6%) | 2.6% |
+| No net loss, no spares, L = 1 | 1 | 11.5% (14.4%) | 13.1% |
+| No net loss, no spares, L = 2 | 1 | 10.8% (14.4%) | 14.4% |
+| No net loss, 1 spare | 4 | 6.6% (10.7%) | 8.8% |
+| No net loss, 1 spare, vulnerability limit | 2 | 2.4% (2.6%) | 2.6% |
+
+Recorded under O7 in `decisions.md`.
+
+## 2026-11-03: O7 directions: no net loss of links and a stale-damage limit
+
+- `candidates.py`: `CandidateConfig.keep_link_count` (default True): MILP row
+  sum_e x_e >= |E_t| (O2 option c, user, after O7).
+- `security.py`: `HistoryEntry.own_damage` and `history_entry` (D(A_i, G_i));
+  `SecurityConfig.max_stale_damage_ratio` (default 1.0: no history plan may do
+  more damage on G' than on its own topology) and `max_vulnerability_ratio`
+  (optional, off: the fresh attacker's damage on G' against its damage on
+  G_0); `SecurityResult` gained `damage_ratio`, `vulnerability`, and
+  `reasons`. `controller.py` and `experiments/defender_epoch.py` build history
+  entries with `history_entry` and pass the original topology's attacker
+  damage as the vulnerability reference; `candidates.csv` gained
+  `stale_damage_ratio`, `vulnerability`, `security_reasons`.
+- **Behavior change:** both are on by default for every run from now on
+  (the vulnerability limit stays off).
+- Tests: stale-damage limit rejects a plan that got stronger; vulnerability
+  limit against a reference; the pool keeps the link count (and without it
+  removals appear). τ-only tests now turn the stale-damage limit off.
+- `docs/code_paper_discrepancies.md`: A6 (the extra security condition) and
+  A7 (the link-count constraint).
+- Results on ANS, 10 epochs (`controller/o7-ANS-keep`, `-keep_spare1`,
+  `-keep_spare2top`; the other four variants were stopped at the user's
+  request, so `o7-ANS-keep_lag2` is an empty, interrupted run): mean benign
+  loss from the stale attack 11.5%, 6.6%, and 11.5%, against 2.6% static and
+  13.3% for Doppler before. Recorded under O7 in `decisions.md`.
+
+## 2026-11-03: O5 option 1 and O6 fix; `code_paper_discrepancies.md`; O7
+
+- `docs/code_paper_discrepancies.md` (new, user's request): a focused list
+  of where the code departs from what the draft spells out (A1-A5), paper
+  requirements not met for lack of data or infrastructure (B1-B8), and
+  promises the results do not support (C1-C3). Interpretations stay in
+  `decisions.md`.
+- O6 fix (user): `controller.py` churn mode now generates the pool as
+  Doppler does but without security guidance, runs only the operational
+  filter, and selects the least-overlap candidate (`selection.py`: new
+  secondary objective `overlap`, |E_t ∩ E'|). On ANS it changes the network
+  every epoch (25 -> 19 links).
+- O5 option 1 (user): `candidates.py` objective `security_guided`
+  (random change weights minus `security_weight` x guidance) and
+  `security.attack_guidance` (share of the history plans' attack traffic a
+  single change moves off their targets); `controller.defender_step` passes
+  it. It did not fix the stall (no safe candidate at ANS epoch 2 for weights
+  2, 4, 8; guidance does not predict τ), so it is not the default.
+- Tests (`test_d26_controller.py`): guidance on the dumbbell (bridge removal
+  1.0, unrelated link 0.0, a shortcut 0.75), the guided objective refuses to
+  run without guidance, churn picks the least-overlap operational candidate.
+- New open issue O7: over 10 epochs on ANS the stale attack's mean benign
+  loss is 2.6% static, 13.3% Doppler, 14.8% churn, because the reconfiguring
+  modes only remove links; τ cannot see it. Recorded in `decisions.md` and
+  as C3 in the discrepancies document.
+
+## 2026-11-03: Phase 4 (control loop and transitions) built
+
+### Decisions (user)
+
+D10 accepted (recon lag L in epochs, default 1, swept 0-3); new D29 (no safe
+topology: stay put), D30 (history includes the current topology), D31
+(transition order: mixed make-before-break). Interpretations I18-I21 and
+plan change P10 added. All in `docs/decisions.md`.
+
+### New modules
+
+- `transition.py` (§4.13, Eq. 32-33, D31): `order_changes` computes E_add
+  and E_remove and orders them (add what fits; remove only what the blocked
+  additions need; add; remove the rest); `evaluate_transition` measures the
+  network after every step (connectivity, MLU, benign loss with unroutable
+  demand) and writes the action list for `transitions.jsonl`.
+- `controller.py` (§4.3, §4.14): `defender_step` (one defender epoch: pool,
+  filters, selection, optional pairwise τ; moved here from the Phase 3
+  experiment) and `run` (the epoch loop: the attacker learns a plan each
+  epoch, the attack uses the plan from L epochs earlier, history of the last
+  h states, selection, transition). Modes `doppler`, `static` (never changes)
+  and `churn` (Eq. 18 objective, no security filter).
+- `run.py` and `configs/` (`ANS_doppler.json`, `ANS_static.json`,
+  `ANS_churn.json`, `smoke.json`): run the controller from a JSON config that
+  lists only what it changes; unknown settings are refused.
+- `results.py`: `write_jsonl`.
+- `experiments/defender_epoch.py`: now calls `controller.defender_step`, so
+  one copy of the epoch logic exists. Verified to reproduce its own results.
+- `tests/test_d26_controller.py`: 11 tests (make-before-break, forced
+  break-before-make, only needed links broken early, no transition,
+  intermediate states with a disconnection, exact reproduction, epoch rows,
+  static mode with L = 0 giving τ = 1, churn without the security filter,
+  config loading and refusal of unknown settings).
+
+### Reproducibility bugs found and fixed
+
+Repeating a run in a new Python process changed some results, because two
+places iterated over Python sets, whose order follows per-process string
+hashing:
+
+- `candidates.build_topology` added links in set order. ECMP keeps the first
+  few equal-cost paths, in the order edges were added, so the same topology
+  could be routed differently. Links are now added in sorted order.
+- `recon/inferred.betweenness` received the traceroute vantage points and
+  destinations as sets; betweenness is a floating-point sum, so the order
+  could flip near-ties and change the attacker's target. They are now
+  passed sorted.
+
+After the fix, the Phase 3 experiment gives identical results under three
+different hash seeds. **Effect on earlier results:** Phase 2 and Phase 3
+runs made before this fix may differ slightly from a rerun where
+near-ties occurred (the traceroute attacker's target, and ECMP paths on
+candidate topologies). The Phase 2 run `recon_eval/phase2-d15-2026-11-03`
+has not been rerun.
+
+### Phase 4 check (ANS, 10 epochs)
+
+Runs `controller/phase4-ANS-doppler`, `-static`, `-churn`, and
+`-doppler-repeat` (local). Every epoch logs the stale-plan damage, T(G'),
+pool sizes, solver time, and transition states. The repeat, run under a
+different Python hash seed, is identical in `epochs.csv`, `candidates.csv`,
+`transferability.csv`, and `transitions.jsonl`: the PLAN §6 check passes.
+
+Time per epoch on ANS: Doppler 6-9 s, static under 1 s, churn 60 s (its
+MILP always runs to T_opt).
+
+Findings, recorded as open issues O5 and O6: Doppler makes two changes
+(stale τ 0.29, then 0.16) and then finds no safe topology, so from epoch 3 the
+stale attack is fully effective (τ = 1.0) as on the static network; wider
+candidate sets, spare transponders, a larger pool, or no stretch limit do not
+produce a safe candidate at that point (best τ 0.89). The churn baseline
+never finds an operational candidate and never changes.
+
+### Docs
+
+`PLAN.md` (status, §4 transition row, §5 note on AlpWolf, layout),
+`README.md` (modules, how to run Phases 3 and 4), `docs/paper_map.md` (§4.3,
+§4.8, §4.13, §4.14 rows), `docs/decisions.md`, `docs/diagrams/modules.md`.
+
 ## 2026-11-03: Five-network epoch with the current defaults
 
 Run `defender_epoch/phase3-defaults-2026-11-03` (S_max = 3, τ against the

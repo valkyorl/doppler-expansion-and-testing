@@ -51,7 +51,8 @@ from dataclasses import dataclass, replace
 
 import networkx as nx
 
-from .damage import relative_damage
+from .candidates import build_topology, link_capacities
+from .damage import evaluate_damage, relative_damage
 from .model import (
     AttackConfig,
     AttackPlan,
@@ -61,8 +62,10 @@ from .model import (
     RoutingConfig,
 )
 from .recon import traceroute
+from .recon.inferred import Edge, edge_key
 from .recon.oracle import BENIGN_MECHANISM, fresh_oracle_plan
 from .recon.oracle import MECHANISM as ORACLE_MECHANISM
+from .routing import directed, link_shares, route
 from .topology import topology_id as compute_topology_id
 
 
@@ -80,6 +83,16 @@ class SecurityConfig:
     """Which oracle is η's reference (D15); here only labels the attack config."""
     non_response: float = 0.1
     """Silent-router share of the history attacker's traceroute (D26)."""
+    max_stale_damage_ratio: float | None = 1.0
+    """Stale-damage limit (after O7): every history plan must do at most this
+    multiple of the damage it did on its own topology, D(A_i, G') <=
+    ratio x D(A_i, G_i) (§4.2 G1: "produce substantially less damage").
+    ``None`` turns it off."""
+    max_vulnerability_ratio: float | None = 1.0
+    """Vulnerability limit (after O7): the fresh attacker's damage on G' may be
+    at most this multiple of a reference, the attacker's damage on the
+    original topology, so reconfiguring never makes the network more
+    vulnerable. ``None`` turns it off."""
     oracle_comparisons: bool = False
     """Also compare every plan against both oracles' fresh plans (extra columns).
 
@@ -99,6 +112,23 @@ class HistoryEntry:
 
     topology_id: str
     plan: AttackPlan
+    own_damage: float | None = None
+    """D(A_i, G_i): the plan's damage on the topology it was learned on (the
+    τ measure, D1). Needed by the stale-damage limit."""
+
+
+def history_entry(
+    topology: nx.Graph,
+    plan: AttackPlan,
+    benign: Mapping[Pair, float],
+    routing: RoutingConfig,
+    damage: DamageConfig,
+) -> HistoryEntry:
+    """A history entry with the plan's damage on its own topology."""
+    report = evaluate_damage(topology, benign, plan, routing, damage)
+    return HistoryEntry(
+        compute_topology_id(topology), plan, report.measure(damage.tau_measure)
+    )
 
 
 @dataclass(frozen=True)
@@ -110,6 +140,12 @@ class SecurityResult:
     """Neither the fresh plan nor any stale plan does damage on G' (D2)."""
     comparisons: tuple[RelativeDamage, ...]
     """τ(A_i, G') for each history plan, in history order."""
+    damage_ratio: float = math.nan
+    """Worst D(A_i, G') / D(A_i, G_i) over the history (the stale-damage limit)."""
+    vulnerability: float = math.nan
+    """Damage of the fresh plan on G' (what an attacker who re-measures gets)."""
+    reasons: tuple[str, ...] = ()
+    """Why it failed: any of ``tau``, ``stale_damage``, ``vulnerability``."""
 
 
 def attack_config(original: nx.Graph, config: SecurityConfig) -> AttackConfig:
@@ -247,10 +283,13 @@ def security_check(
     config: SecurityConfig,
     *,
     seed: int,
+    vulnerability_reference: float | None = None,
 ) -> SecurityResult:
     """T(G') over the last h history entries, and whether G' passes (Eq. 21-22).
 
-    ``seed`` is the measurement seed of the fresh reconnaissance of G'.
+    ``seed`` is the measurement seed of the fresh reconnaissance of G'. Besides
+    T(G') <= τ_max, a candidate must meet the stale-damage limit and, when
+    set, the vulnerability limit against ``vulnerability_reference``.
     """
     recent = list(history)[-config.history_length :]
     if not recent:
@@ -270,11 +309,49 @@ def security_check(
         for entry in recent
     )
     worst = max(c.ratio for c in comparisons)
+    tolerance = damage.zero_tolerance
+
+    def grown(now: float, before: float | None) -> float:
+        if before is None:
+            return math.nan
+        if before > tolerance:
+            return now / before
+        return math.inf if now > tolerance else 0.0
+
+    damage_ratio = max(
+        (
+            grown(c.numerator, e.own_damage)
+            for c, e in zip(comparisons, recent, strict=True)
+        ),
+        default=math.nan,
+    )
+    vulnerability = max(c.denominator for c in comparisons)
+    reasons = []
+    if not worst <= config.tau_max:
+        reasons.append("tau")
+    if config.max_stale_damage_ratio is not None:
+        if any(e.own_damage is None for e in recent):
+            raise ValueError(
+                "The stale-damage limit needs history entries with own_damage"
+            )
+        if not damage_ratio <= config.max_stale_damage_ratio:
+            reasons.append("stale_damage")
+    if config.max_vulnerability_ratio is not None:
+        if vulnerability_reference is None:
+            raise ValueError("The vulnerability limit needs a reference damage")
+        if (
+            not grown(vulnerability, vulnerability_reference)
+            <= config.max_vulnerability_ratio
+        ):
+            reasons.append("vulnerability")
     return SecurityResult(
         transferability=worst,
-        passed=worst <= config.tau_max,
+        passed=not reasons,
         attack_immune=all(c.attack_immune for c in comparisons),
         comparisons=comparisons,
+        damage_ratio=damage_ratio,
+        vulnerability=vulnerability,
+        reasons=tuple(reasons),
     )
 
 
@@ -303,3 +380,48 @@ def pairwise_transferability(
         for i, (_, plan) in enumerate(members)
         for j, (graph_j, _) in enumerate(members)
     ]
+
+
+def attack_guidance(
+    current: nx.Graph,
+    original: nx.Graph,
+    links: Sequence[Edge],
+    plans: Sequence[AttackPlan],
+    routing: RoutingConfig,
+) -> dict[Edge, float]:
+    """Security guidance g_e for the MILP's ``security_guided`` objective (O5).
+
+    For each link e the MILP may change, the share of the history plans'
+    attack traffic that changing e alone (removing it if present, adding it
+    if not) would move off each plan's target link, averaged over plans.
+    Attack traffic is routed with the network's routing, so an added
+    shortcut counts when it pulls the attack pairs' paths away from the
+    target. A cheap, additive stand-in for T(G') (Eq. 21, 25): it ignores
+    that the attacker re-targets, which the security filter then checks.
+    """
+    plans = [p for p in plans if p.target is not None]
+    if not plans:
+        return {}
+    current_links = frozenset(edge_key(u, v) for u, v in current.edges)
+    capacities = link_capacities(original, current_links | set(links))
+
+    def on_target(graph: nx.Graph) -> list[float]:
+        directed_graph = directed(graph)
+        loads = []
+        for plan in plans:
+            demands = plan.demands()
+            shares = link_shares(route(directed_graph, demands, routing))
+            loads.append(
+                sum(demands[p] * s for p, s in shares.get(plan.target, {}).items())
+            )
+        return loads
+
+    before = on_target(current)
+    guidance = {}
+    for e in links:
+        after = on_target(build_topology(original, current_links ^ {e}, capacities))
+        moved = [
+            (b - a) / b if b > 0 else 0.0 for b, a in zip(before, after, strict=True)
+        ]
+        guidance[e] = max(0.0, sum(moved) / len(moved))
+    return guidance

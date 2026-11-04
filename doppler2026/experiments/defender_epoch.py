@@ -42,19 +42,13 @@ from dataclasses import asdict, dataclass, field
 import numpy as np
 
 from .. import candidates as cand
-from ..feasibility import FeasibilityConfig, feasible_links
-from ..filters import OperationalConfig, operational_check, reference_lengths
+from ..controller import DefenderConfig, defender_step
+from ..feasibility import FeasibilityConfig
+from ..filters import OperationalConfig
 from ..model import DamageConfig, RoutingConfig
 from ..results import new_run_dir, write_config, write_csv
-from ..security import (
-    HistoryEntry,
-    SecurityConfig,
-    attack_config,
-    history_plan,
-    pairwise_transferability,
-    security_check,
-)
-from ..selection import SelectionConfig, select
+from ..security import SecurityConfig, attack_config, history_entry, history_plan
+from ..selection import SelectionConfig
 from ..topology import load_topology, topology_id
 from ..traffic import benign_demand
 
@@ -82,183 +76,56 @@ class DefenderEpochConfig:
     pairwise: bool = True
 
 
-def secondary_score(objective: str, operational, candidate: cand.Candidate) -> float:
-    if objective == "mlu":
-        return operational.mlu
-    if objective == "stretch":
-        return operational.max_stretch
-    return float(len(candidate.added) + len(candidate.dropped))
-
-
 def run_network(name: str, config: DefenderEpochConfig) -> tuple[dict, list, list]:
-    """One epoch on one network: (epoch row, candidate rows, transferability rows)."""
+    """One epoch on one network: (epoch row, candidate rows, transferability rows).
+
+    Steps 2-7 are ``controller.defender_step``, the same code the
+    multi-epoch controller runs.
+    """
     started = time.perf_counter()
-    routing, damage = config.routing, config.damage
+    defender = DefenderConfig(
+        feasibility=config.feasibility,
+        candidates=config.candidates,
+        operational=config.operational,
+        security=config.security,
+        selection=config.selection,
+        routing=config.routing,
+        damage=config.damage,
+    )
     original = load_topology(name)
     benign = benign_demand(
-        original, config.benign_utilization, routing, seed=config.benign_seed
+        original, config.benign_utilization, config.routing, seed=config.benign_seed
     )
     attack = attack_config(original, config.security)
 
     # 1. The attacker's plan on the current (original) topology.
-    plan = history_plan(original, attack, routing, config.security, seed=config.epoch)
-    history = [HistoryEntry(topology_id(original), plan)]
+    plan = history_plan(
+        original, attack, config.routing, config.security, seed=config.epoch
+    )
+    history = [history_entry(original, plan, benign, config.routing, config.damage)]
 
-    # 2-3. E* and the candidate pool.
-    feasible = feasible_links(original, config.feasibility)
-    pool = cand.generate(
+    step = defender_step(
+        name,
         original,
         original,
-        feasible,
+        history,
         benign,
-        config.candidates,
-        targets=[e.plan.target for e in history if e.plan.target],
+        attack,
+        defender,
+        epoch=config.epoch,
+        rng=np.random.default_rng(config.seed),
+        pairwise=config.pairwise,
+        vulnerability_reference=history[0].own_damage,
     )
-    capacities = cand.link_capacities(original, pool.variable_links)
-    reference = reference_lengths(
-        original, benign, routing, config.operational.stretch_metric
-    )
-
-    # 4-5. Filters.
-    rows: list[dict] = []
-    transfer_rows: list[dict] = []
-    safe: dict[str, tuple] = {}
-    for candidate in pool.candidates:
-        graph = cand.build_topology(original, candidate.links, capacities)
-        operational = operational_check(
-            graph, benign, reference, routing, config.operational
-        )
-        row = {
-            "network": name,
-            "epoch": config.epoch,
-            "topology_id": candidate.topology_id,
-            "solve_index": candidate.solve_index,
-            "links": len(candidate.links),
-            "added": len(candidate.added),
-            "dropped": len(candidate.dropped),
-            "added_links": ";".join(f"{u}-{v}" for u, v in sorted(candidate.added)),
-            "dropped_links": ";".join(f"{u}-{v}" for u, v in sorted(candidate.dropped)),
-            "milp_mlu": candidate.milp_mlu,
-            "milp_objective": candidate.objective,
-            "proven_optimal": candidate.proven_optimal,
-            "operational_passed": operational.passed,
-            "operational_reasons": ";".join(operational.reasons),
-            "mlu": operational.mlu,
-            "max_stretch": operational.max_stretch,
-            "mean_stretch": operational.mean_stretch,
-            "two_edge_connected": operational.two_edge_connected,
-            "transferability": float("nan"),
-            "security_passed": False,
-            "attack_immune": False,
-            "safe": False,
-            "selected": False,
-            "acceptable": False,
-        }
-        if operational.passed:
-            security = security_check(
-                graph,
-                history,
-                benign,
-                attack,
-                routing,
-                damage,
-                config.security,
-                seed=config.epoch + 1,
-            )
-            row.update(
-                transferability=security.transferability,
-                security_passed=security.passed,
-                attack_immune=security.attack_immune,
-                safe=security.passed,
-            )
-            for entry, comparison in zip(history, security.comparisons, strict=True):
-                transfer_rows.append(
-                    {
-                        "network": name,
-                        "epoch": config.epoch,
-                        "role": "security",
-                        "plan_learned_on": entry.topology_id,
-                        **comparison.as_row(),
-                    }
-                )
-            if security.passed:
-                score = secondary_score(
-                    config.selection.objective, operational, candidate
-                )
-                safe[candidate.topology_id] = (graph, operational, score)
-        row["secondary_score"] = (
-            safe[candidate.topology_id][2] if candidate.topology_id in safe else None
-        )
-        rows.append(row)
-
-    # 6. Selection.
-    rng = np.random.default_rng(config.seed)
-    chosen = None
-    if safe:
-        choice = select({t: s for t, (_, _, s) in safe.items()}, config.selection, rng)
-        chosen = choice.chosen
-        for row in rows:
-            row["acceptable"] = row["topology_id"] in choice.acceptable
-            row["selected"] = row["topology_id"] == chosen
-
-    # 7. Pairwise τ over the safe pool (Eq. 24).
-    if config.pairwise and len(safe) > 1:
-        ids = sorted(safe)
-        members = [
-            (
-                safe[t][0],
-                history_plan(
-                    safe[t][0], attack, routing, config.security, seed=config.epoch
-                ),
-            )
-            for t in ids
-        ]
-        for i, j, comparison in pairwise_transferability(
-            members,
-            benign,
-            attack,
-            routing,
-            damage,
-            config.security,
-            seed=config.epoch + 1,
-        ):
-            transfer_rows.append(
-                {
-                    "network": name,
-                    "epoch": config.epoch,
-                    "role": "pairwise",
-                    "plan_learned_on": ids[i],
-                    "member_i": i,
-                    "member_j": j,
-                    **comparison.as_row(),
-                }
-            )
-
-    selected = next((r for r in rows if r["selected"]), None)
     epoch_row = {
         "network": name,
         "epoch": config.epoch,
         "current_topology_id": topology_id(original),
         "history_plan_target": plan.target,
-        "feasible_links": len(feasible),
-        "variable_links": len(pool.variable_links),
-        "pool_status": pool.status,
-        "solves": pool.solves,
-        "solver_time": pool.wall_time,
-        "candidates": len(pool.candidates),
-        "operational_passed": sum(r["operational_passed"] for r in rows),
-        "safe": len(safe),
-        "attack_immune": sum(r["attack_immune"] for r in rows),
-        "acceptable": sum(r["acceptable"] for r in rows),
-        "selected_topology_id": chosen,
-        "selected_transferability": selected["transferability"] if selected else None,
-        "selected_mlu": selected["mlu"] if selected else None,
-        "selected_max_stretch": selected["max_stretch"] if selected else None,
-        "selected_added": selected["added_links"] if selected else None,
-        "selected_dropped": selected["dropped_links"] if selected else None,
+        **step.row,
         "wall_time": time.perf_counter() - started,
     }
-    return epoch_row, rows, transfer_rows
+    return epoch_row, step.candidates, step.transferability
 
 
 def check(epoch_row: dict, rows: list[dict], config: DefenderEpochConfig) -> None:

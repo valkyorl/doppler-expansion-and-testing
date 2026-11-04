@@ -1,0 +1,6 @@
+{
+  "_comment": "Structural-churn baseline (Eq. 18): min-overlap objective, operational filter only.",
+  "network": "ANS",
+  "epochs": 10,
+  "mode": "churn"
+}

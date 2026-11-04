@@ -7,8 +7,9 @@ objective, keeps an acceptable subset, and picks one of those at random.
 
 - Secondary objective (D24): ``"mlu"`` (default; the highest benign
   utilization under the network's routing), ``"stretch"`` (the largest
-  path stretch), or ``"changes"`` (links added plus links dropped). Lower
-  is better for all three.
+  path stretch), ``"changes"`` (links added plus links dropped), or
+  ``"overlap"`` (|E_t ∩ E'|, links kept from the current topology: the
+  structural-churn baseline's rule, Eq. 18, O6). Lower is better for all.
 - Acceptable subset (D9): candidates whose score is within ``tolerance``
   (default 10%) of the best score.
 - The choice is uniform over the acceptable subset, with a seeded random
@@ -22,7 +23,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-SECONDARY_OBJECTIVES = ("mlu", "stretch", "changes")
+SECONDARY_OBJECTIVES = ("mlu", "stretch", "changes", "overlap")
 
 
 @dataclass(frozen=True)
