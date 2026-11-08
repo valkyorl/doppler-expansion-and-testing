@@ -1,0 +1,6 @@
+{
+  "_comment": "Static baseline: the topology never changes (\u00a74.2 G1).",
+  "network": "sprint",
+  "epochs": 10,
+  "mode": "static"
+}

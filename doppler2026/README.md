@@ -5,15 +5,12 @@ This folder implements the experiment for the draft paper
 optical network so that link-flooding attack plans learned on earlier
 topologies stop working, while benign traffic is still carried safely.
 
-**Status:** Phase 4 built: the multi-epoch controller with transitions and
-static and churn baselines, on top of Phase 3's defender (feasible links,
-candidate pool, operational and security filters, selection) and Phase 2's
-attackers, damage, τ/η, and reconnaissance experiment (RQ1–RQ3). Defaults
-after open issues O5-O7: no net loss of links, one spare transponder per
-PoP, and a security filter that checks τ, stale damage, and vulnerability.
-See `CHANGES.md` for what has been done and `PLAN.md` §6 for what comes
-next. Where the implementation departs from the draft paper is listed in
-`docs/code_paper_discrepancies.md`.
+**Status: version zero (v0), 2026-11-04.** Every part of the paper's design
+(§3 reconnaissance, §4 Doppler with its baselines) is built and runs end to
+end; the paper's §4 evaluation (Phase 5) is not. Start with
+`docs/v0_summary.md`: what exists, what the results show so far, the issues,
+and what is not built. Where the implementation departs from the draft paper
+is listed in `docs/code_paper_discrepancies.md`.
 
 ## What exists so far
 
@@ -42,6 +39,8 @@ next. Where the implementation departs from the draft paper is listed in
 | `transition.py` | E_add / E_remove, transition order, intermediate states | §4.13, Eq. 32–33 |
 | `controller.py` | The multi-epoch control loop, attacker lag, history; static and churn baselines | §4.3, §4.14 |
 | `run.py`, `configs/` | Run the controller from a JSON config | PLAN §3, §10 |
+| `reproduce_v0.sh` | Rerun every v0 experiment and build every figure | PLAN §10 |
+| `figures/fig_controller_stale_damage.py` | Stale-plan damage per epoch: static, Doppler, churn | §4.2 G1 |
 
 A minimal example, from the repository root:
 
@@ -74,6 +73,7 @@ print(result.ratio, result.other_ratio)   # about 0.167 (vs D15), 1.0 (vs itself
 
 | File | What it tells you |
 |---|---|
+| `docs/v0_summary.md` | **Start here:** the state at version zero, issues, and what is not built |
 | `PLAN.md` | The full design, phases, experiments, and known gaps |
 | `CHANGES.md` | Every file created or changed for this work, and why |
 | `docs/paper_map.md` | Which module implements which paper section and equation |
@@ -102,6 +102,14 @@ pip install --no-deps GraphRicciCurvature==0.6.1
 ```
 
 `pip check` will then report the SciPy pin as unmet; that is expected.
+
+### Everything at once (v0)
+
+```bash
+bash doppler2026/reproduce_v0.sh            # all steps, about 1.5 hours
+bash doppler2026/reproduce_v0.sh figures    # one step: recon, defender, controller, figures
+bash doppler2026/reproduce_v0.sh all v1     # rerun under another run name
+```
 
 ### Reconnaissance experiment (Phase 2)
 
@@ -142,6 +150,11 @@ python -m doppler2026.run doppler2026/configs/ANS_doppler.json   # Doppler
 python -m doppler2026.run doppler2026/configs/ANS_static.json    # topology never changes
 python -m doppler2026.run doppler2026/configs/ANS_churn.json     # structural churn, Eq. 18
 ```
+
+`configs/` has one file per network (sprint, ANS, CRL, bellCanada, surfNet)
+and mode (`doppler`, `static`, `churn`). Compare the modes with
+`python -m doppler2026.figures.fig_controller_stale_damage --prefix v0`,
+which reads every run named `v0-<network>-<mode>`.
 
 A config lists only the settings it changes; everything else keeps the
 defaults in `docs/decisions.md`. Results go to

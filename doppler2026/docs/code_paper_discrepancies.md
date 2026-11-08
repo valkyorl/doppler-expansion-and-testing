@@ -179,17 +179,41 @@ not yet built), or **open** (a promise the results do not yet support).
 
 ## C. Promises the current results do not support
 
-### C1. Sustained expiry of reconnaissance — open (O5)
+Results with the v0 defaults (10 epochs, one seed, runs
+`controller/v0-<network>-<mode>`; table `figures/out/controller_stale_damage.md`).
+"Stale loss" is the mean share of benign traffic lost to the attack running
+in each epoch, which uses the plan learned one epoch earlier (L = 1).
+
+| Network | Mode | Epochs that moved | Mean stale loss (%) | Mean stale τ | Links (first -> last) |
+|---|---|---|---|---|---|
+| sprint | Static | 0 | 2.3 | 1.0 | 18 -> 18 |
+| sprint | Doppler | 6 | 0.9 | 0.57 | 18 -> 22 |
+| sprint | Structural churn | 10 | 3.4 | 0.79 | 18 -> 18 |
+| ANS | Static | 0 | 2.6 | 1.0 | 25 -> 25 |
+| ANS | Doppler | 2 | 2.4 | 0.93 | 25 -> 25 |
+| ANS | Structural churn | 10 | 3.7 | 0.94 | 25 -> 25 |
+| CRL | Static | 0 | 9.8 | 1.0 | 38 -> 38 |
+| CRL | Doppler | 0 | 9.8 | 1.0 | 38 -> 38 |
+| CRL | Structural churn | 10 | 7.4 | 0.96 | 38 -> 38 |
+| bellCanada | Static | 0 | 5.6 | 1.0 | 64 -> 64 |
+| bellCanada | Doppler | 0 | 5.6 | 1.0 | 64 -> 64 |
+| bellCanada | Structural churn | 10 | 5.1 | 0.91 | 64 -> 64 |
+| surfNet | Static | 0 | 6.1 | 1.0 | 68 -> 68 |
+| surfNet | Doppler | 0 | 6.1 | 1.0 | 68 -> 68 |
+| surfNet | Structural churn | 10 | 7.2 | 1.01 | 68 -> 69 |
+
+### C1. Sustained expiry of reconnaissance — open (O5, O8)
 
 - **Paper (§1, contributions, §4.2 G1):** Doppler "periodically selects a new
   feasible optical topology such that attack plans derived from previous
   network states have low effectiveness", "forcing an attacker to repeat
   reconnaissance".
-- **Results so far:** on ANS, two safe moves (stale τ 0.29, then 0.16), then
-  no safe topology: the network stays put and the stale attack is fully
-  effective (τ = 1.0), as on a static network. CRL, bellCanada, and surfNet
-  find no safe move in the first epoch. The security heuristic of A4 did not
-  change this.
+- **Results at v0:** only on sprint does Doppler keep moving (6 of 10
+  epochs), and there the stale plan's τ averages 0.57 and its damage falls
+  from 2.3% to 0.9%. On ANS it moves twice (2.4% against 2.6%). On CRL,
+  bellCanada, and surfNet it never moves: no candidate passes both the
+  operational and the security filter (O8), so the stale attack is fully
+  effective (τ = 1.0), as on a static network.
 - **Paper change if it persists:** "reconfigures while safe moves exist",
   the controller's behavior when none exists (stays put, D29), and a measured
   per-network budget of safe moves.
@@ -199,22 +223,28 @@ not yet built), or **open** (a promise the results do not yet support).
 - **Paper (§1, §4.8):** "Rather than merely maximizing structural
   differences..."; two topologies with small edge overlap can still route
   attack traffic through the same cut.
-- **Results so far:** with the A5 baseline, churn changes the network every
-  epoch on ANS (25 -> 19 links). Its stale-plan τ swings between 0.21 and 5.3;
-  Doppler's mean stale damage (13.3%) is slightly below churn's (14.8%), but
-  both are far above the static network's (C3).
+- **Results at v0:** the churn baseline (A5) changes the topology in every
+  epoch on every network. Against the static network its stale loss is
+  higher on sprint (3.4% against 2.3%), ANS (3.7% against 2.6%), and
+  surfNet (7.2% against 6.1%), and lower on CRL (7.4% against 9.8%) and
+  bellCanada (5.1% against 5.6%). Doppler is below churn on sprint and ANS,
+  but above it on CRL and bellCanada, where Doppler never moves. So the
+  paper's claim holds on two networks, and on two others plain structural
+  change does better than Doppler at v0.
 
-### C3. Reconfiguring increases the damage attacks do — open (O7)
+### C3. Reconfiguring must not increase the damage attacks do — met by an added condition (O7, A6)
 
 - **Paper (§4.2 G1, G2):** after a transition, a stale plan "should produce
   substantially less damage"; "a topology is not a valid defense if it
   protects the network by degrading its users".
-- **Results so far:** over 10 epochs on ANS, the stale attack's mean benign
-  loss is 2.6% on the static network, 13.3% under Doppler, and 14.8% under
-  churn. The reconfiguring modes only remove links (O2), and each removal
-  makes fresh and stale attacks more damaging. Doppler's τ is low in the
-  epochs where it moves, because τ divides by a fresh attacker's damage on
-  the same, weaker topology.
-- **Paper change if it persists:** G1 measured as a ratio (Eq. 1) does not
-  guarantee less damage; the paper would need an absolute damage bound in the
-  security filter or a statement that τ alone is insufficient.
+- **Results:** under Eq. 22 alone (τ only) Doppler made ANS more vulnerable
+  (stale loss 13.3% against 2.6% static, before the v0 defaults). τ is a
+  ratio against a fresh attacker on the same topology, so a weaker topology
+  can still have low τ. With the stale-damage and vulnerability limits of A6
+  and the no-net-loss rule of A7, Doppler's stale loss is at or below the
+  static network's in every epoch on every network at v0. The cost is fewer moves: on bellCanada, sprint,
+  and ANS, candidates that pass τ are rejected only by the vulnerability
+  limit (O8).
+- **Paper change:** G1 measured as a ratio (Eq. 1) does not guarantee less
+  damage; the paper needs an absolute damage bound in the security filter
+  (as A6) or a statement that τ alone is insufficient.

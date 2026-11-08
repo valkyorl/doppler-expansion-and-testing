@@ -6,12 +6,11 @@ and checking the experiment. Paper references use § and Eq. numbers. Audit
 references ("audit #n") point to items in
 `docs/knowledge/analysisResults/doppler-paper-vs-code.html`.
 
-Status: **Phase 4 built (2026-11-03):** transitions, the multi-epoch
-controller with static and churn baselines, `run.py`, and configs. After
-open issues O5-O7 the defaults are: no net loss of links, one spare
-transponder per PoP, and a security filter with three conditions (τ, stale
-damage, vulnerability). Departures from the paper are listed in
-`docs/code_paper_discrepancies.md`. Next: Phase 5 (paper evaluations). See
+Status: **version zero (v0), 2026-11-04.** Phases 0-4 are built and every
+experiment runs to completion; `reproduce_v0.sh` reruns them all and builds
+the figures. Phase 5 (the paper's evaluations, §7) is not built: what is
+missing is in §9 and in `docs/v0_summary.md`, which describes the state at
+v0. Departures from the paper are in `docs/code_paper_discrepancies.md`. See
 `CHANGES.md`.
 
 ---
@@ -231,18 +230,19 @@ Each phase ends with something runnable and a check you can verify.
   size, solver time, and transition states. Repeating a run with the same
   seed reproduces it exactly.
 
-**Phase 5: Paper evaluations (§7 below).**
+**Phase 5: Paper evaluations (§7 below).** Not started at v0; the scripts
+marked "not built" in §7 are listed as gaps in §9.
 
 ## 7. Experiments that produce the paper's results
 
 | Script | Paper | Produces |
 |---|---|---|
-| `experiments/recon_eval.py` | §3.7 RQ1–RQ3 | Topology recovery, P@k, attack impact vs budget for oracle / random / traceroute / RTT-Ricci, ε sensitivity, coverage. Built in Phase 2. Not yet included: the §3.3 sensitivity experiment with an oracle rate allocation (minimum budget to overload a target with capacity knowledge) |
-| `experiments/transferability.py` | §1, §4.2 G1 | τ of stale plans across Doppler epochs vs a static network and vs a structural-churn baseline (Eq. 18) |
-| `experiments/diversity.py` | §4.9 | Safe-pool size and pairwise τ clustering per network |
-| `experiments/cost.py` | §4.7, §4.13 | MLU, stretch, benign loss in steady state and during transitions |
-| `experiments/solver_budget.py` | §4.12 | Time to first safe topology, safe configurations found, best T(G′) vs T_opt |
-| `experiments/envelope.py` | §2.5, §4.5 | Effect of fallow transponders, reach, and candidate set size on safe diversity |
+| `experiments/recon_eval.py` | §3.7 RQ1–RQ3 | Topology recovery, P@k, attack impact vs budget for oracle / random / traceroute / RTT-Ricci, ε sensitivity, coverage. **Built** in Phase 2. Not yet included: the §3.3 sensitivity experiment with an oracle rate allocation (minimum budget to overload a target with capacity knowledge) |
+| `experiments/transferability.py` | §1, §4.2 G1 | τ of stale plans across Doppler epochs vs a static network and vs a structural-churn baseline (Eq. 18). **Not built**; at v0 `run.py` with `configs/<network>_<mode>.json` gives one run per mode, compared by `figures/fig_controller_stale_damage.py`. Missing: sweeps (L, τ_max, h, budget) and seeds |
+| `experiments/diversity.py` | §4.9 | Safe-pool size and pairwise τ clustering per network. **Not built**; `experiments/defender_epoch.py` computes the pairwise τ matrix for one epoch |
+| `experiments/cost.py` | §4.7, §4.13 | MLU, stretch, benign loss in steady state and during transitions. **Not built**; the values are in every controller run's `epochs.csv` and `transitions.jsonl` |
+| `experiments/solver_budget.py` | §4.12 | Time to first safe topology, safe configurations found, best T(G′) vs T_opt. **Not built** |
+| `experiments/envelope.py` | §2.5, §4.5 | Effect of fallow transponders, reach, and candidate set size on safe diversity. **Not built**; the O7 variants were run by hand with configs |
 
 The structural-churn baseline (minimize |E_t ∩ E′|, Eq. 18) is the paper's own
 point of comparison. It is also what the legacy Gurobi Doppler did, so it is
@@ -253,21 +253,22 @@ worth including.
 These go into `docs/decisions.md` with a proposed default, and get confirmed
 with you before the phase that needs them.
 
-Status 2026-11-03: every choice needed by Phase 3 is accepted, including the
-later additions D16–D25 (see `docs/decisions.md`). Only D10 (Phase 4) is open.
+Status at version zero (2026-11-04): every choice below is decided, as are
+the later additions D11–D31 (see `docs/decisions.md`, which is authoritative;
+this table shows the original proposals, with revisions noted).
 
 | # | Question | Proposed default |
 |---|---|---|
 | D1 | Which damage measure defines τ? | Benign traffic lost; the other §3.4 measures are reported alongside |
-| D2 | τ when the fresh plan does no damage (D(A*, G′) = 0) | Define τ = 0 and flag the candidate as "attack-immune at this budget" |
+| D2 | τ when the fresh plan does no damage (D(A*, G′) = 0) | Define τ = 0 and flag the candidate as "attack-immune at this budget". Revised 2026-11-03: τ = 0 (immune) only if the stale plan is harmless too, else τ = infinity |
 | D3 | History length h, threshold τ_max, pool size K | h = 3, τ_max = 0.5, K = 50; swept in experiments |
 | D4 | Attack budget R_A and pairs N_A | Sweep R_A as a multiple of the target link's capacity; N_A = 10 |
 | D5 | U_max and S_max | U_max = 0.8, S_max = 3 (revised 2026-11-03 from 1.5; O4) |
 | D6 | Optical reach | Configurable km limit; default unlimited until real data exists |
-| D7 | Which attacker the defender assumes when building the history | Accepted 2026-11-03: traceroute (§4.8); oracles and RTT/Ricci as experiment axes |
+| D7 | Which attacker the defender assumes when building the history | Traceroute (§4.8); oracles and RTT/Ricci as experiment axes |
 | D8 | Attacker endpoints | Every PoP can source and sink attack traffic |
 | D9 | "Acceptable subset" for random selection | Candidates whose secondary score is within 10% of the best |
-| D10 | Recon lag L vs epoch length T_R | L in epochs, swept from 0 to 3 |
+| D10 | Recon lag L vs epoch length T_R | L in epochs, default L = 1, swept from 0 to 3 |
 
 ## 9. Known gaps: deferred, with a plug-in point
 
@@ -277,13 +278,17 @@ them blocks Phases 0–3.
 
 | Gap | Paper | What is built now | How it is closed later | Blocks |
 |---|---|---|---|---|
-| Packet-level transition effects (convergence, packet loss) | §1, §4.13 | `transition.py` writes an explicit, ordered, timestamped list of circuit and IP-link actions per transition, plus flow-level metrics for each intermediate state | An emulation testbed replays the action list and reports convergence and loss into the same result schema | The paper's transient-effects claims only |
+| Packet-level transition effects (convergence, packet loss) | §1, §4.13 | `transition.py` writes an explicit, ordered (numbered, not timed) list of IP-link actions per transition, plus flow-level metrics for each intermediate state | An emulation testbed replays the action list and reports convergence and loss into the same result schema | The paper's transient-effects claims only |
 | Real RTT / traceroute measurements | §3.5 | Recon modules read measurements through one loader interface; a simulator implements it. The existing regional Ricci reconstruction gets its own loader | Add a loader per real dataset; collection must follow §3.6 authorization rules | RQ1–RQ3 on operational networks |
 | Independent ground truth | §3.4 | RQ1 metrics refuse to run unless the ground-truth source is marked as independently validated in the config | Confirm provenance of the regional ground truth (audit #8) or obtain operator-validated topologies | RQ1 numbers only |
 | Optical data (ROADM, spectrum, transponder placement) | §4.4 | Feasibility = fiber path + reach, with a pluggable check for the rest (default: allowed, recorded as an assumption) | Add checks when optical data exists | Strength of G3 claims |
 | ~~GraphRicciCurvature on Python 3.13~~ | §3.1.1 | Closed in Phase 2: installed with `--no-deps` (decision P8) | — | — |
 | Comcast in the reconnaissance evaluation | §3.5 | Excluded from the default network list: its origin is unknown (`docs/references.md`) and at 149 nodes a full run is much slower | Confirm its origin; run it on its own with `--networks Comcast` | Coverage of one more network |
-| Open parameter choices D1–D10 | various | Defaults proposed in §8 | Confirmed with you before the phase that needs each one | One phase each |
+| ~~Open parameter choices D1–D10~~ | various | Closed at v0: all decided (`docs/decisions.md`) | — | — |
+| Phase 5 experiment scripts (`transferability.py`, `diversity.py`, `cost.py`, `solver_budget.py`, `envelope.py`) | §4.2, §4.7, §4.9, §4.12, §2.5 | Every quantity they need is written by `run.py` and `experiments/defender_epoch.py`; one figure (`fig_controller_stale_damage.py`) compares the modes | One script per row of §7, each a sweep over configs writing the §10 schema | The paper's §4 evaluation |
+| §3.3 oracle rate allocation (minimum budget to overload a target with capacity knowledge) | §3.3 | — | A new attacker in `recon/oracle.py` and a sweep in `recon_eval.py` | The §3.3 sensitivity experiment only |
+| Sustained reconfiguration on most networks (O5, O8) | §1, §4.2 G1 | Doppler moves on sprint and ANS; on CRL, bellCanada, and surfNet no candidate passes the operational and security filters (open issue O8) | Tuning (S_max, Eq. 17 latency allowance, larger changes, τ_max) measured with the envelope experiment | Claims C1-C3 in `docs/code_paper_discrepancies.md` |
+| Seeds and repetitions | §5 | Every run is exactly reproducible from its seed; each v0 run uses one seed | Repeat runs over seeds in the Phase 5 scripts and report spread | Confidence intervals in every figure |
 
 **Paper-level risk.** The draft promises packet-level transition results. If
 no testbed is available before submission, the paper text must be scoped
@@ -330,9 +335,9 @@ One script per figure or table, reading only result files and writing to
 | Topology recovery (P/R/F1) and ε sensitivity | §3.7 RQ1 | `recon.csv` | 2 |
 | Critical-link P@k | §3.7 RQ2 | `recon.csv` | 2 |
 | Attack impact vs budget, per attacker | §3.7 RQ3 | `transferability.csv` | 2 |
-| τ of stale plans over epochs: Doppler vs static vs structural churn | §4.2 G1 | `transferability.csv` | 4 |
-| Pairwise τ heatmap of a safe pool | §4.9 | `transferability.csv` | 3 |
-| MLU / stretch / benign loss, steady state and transitions | §4.7, §4.13 | `epochs.csv` | 4 |
+| Stale-plan damage over epochs: Doppler vs static vs structural churn (built at v0 as `fig_controller_stale_damage.py`, damage and τ per epoch) | §4.2 G1 | `epochs.csv` | 4 |
+| Pairwise τ heatmap of a safe pool (not built at v0) | §4.9 | `transferability.csv` | 3 → 5 |
+| MLU / stretch / benign loss, steady state and transitions (not built at v0) | §4.7, §4.13 | `epochs.csv` | 4 → 5 |
 | Solver budget trade-off | §4.12 | `epochs.csv`, `candidates.csv` | 5 |
 | Deployment envelope | §2.5 | `epochs.csv` | 5 |
 

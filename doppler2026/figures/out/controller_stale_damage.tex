@@ -1,0 +1,22 @@
+% §4.2 G1. Stale attack plans (L = recon lag) over the controller runs v0-*: epochs that changed the topology, mean benign loss caused by the stale plan, and mean stale τ.
+\begin{tabular}{llllll}
+\toprule
+network & mode & Epochs that moved & Mean stale benign loss (\%) & Mean stale τ & Links (first -> last epoch) \\
+\midrule
+sprint & Static & 0 & 2.3 & 1.0 & 18 -> 18 \\
+sprint & Doppler & 6 & 0.9 & 0.57 & 18 -> 22 \\
+sprint & Structural churn & 10 & 3.4 & 0.79 & 18 -> 18 \\
+ANS & Static & 0 & 2.6 & 1.0 & 25 -> 25 \\
+ANS & Doppler & 2 & 2.4 & 0.93 & 25 -> 25 \\
+ANS & Structural churn & 10 & 3.7 & 0.94 & 25 -> 25 \\
+CRL & Static & 0 & 9.8 & 1.0 & 38 -> 38 \\
+CRL & Doppler & 0 & 9.8 & 1.0 & 38 -> 38 \\
+CRL & Structural churn & 10 & 7.4 & 0.96 & 38 -> 38 \\
+bellCanada & Static & 0 & 5.6 & 1.0 & 64 -> 64 \\
+bellCanada & Doppler & 0 & 5.6 & 1.0 & 64 -> 64 \\
+bellCanada & Structural churn & 10 & 5.1 & 0.91 & 64 -> 64 \\
+surfNet & Static & 0 & 6.1 & 1.0 & 68 -> 68 \\
+surfNet & Doppler & 0 & 6.1 & 1.0 & 68 -> 68 \\
+surfNet & Structural churn & 10 & 7.2 & 1.01 & 68 -> 69 \\
+\bottomrule
+\end{tabular}

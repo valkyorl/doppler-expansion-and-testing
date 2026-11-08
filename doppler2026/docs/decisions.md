@@ -144,7 +144,14 @@ cost, so the cost stays known as the experiment grows.
   reconnaissance experiments, so using it inside the security filter would
   need new code.
 
-## Interpretations made in Phase 1 (need confirmation)
+## Interpretations made in Phase 1 (provisional, accepted for v0)
+
+**Status at version zero (user, 2026-11-04):** every interpretation I1-I21
+is accepted provisionally for the v0 baseline. "Provisional" means the code
+uses it and the v0 results depend on it, but none has been reviewed against
+the paper one by one; each stays listed, can be changed in the place named,
+and is a candidate for review after v0. I3, I4, and I13 were reviewed and
+accepted individually (dates below).
 
 I3 and I4 were accepted by the user on 2026-11-03 but remain
 interpretations of the paper, not settled paper text: they stay listed here,
@@ -163,7 +170,7 @@ can be changed in one place.
 | I5 | Benign traffic (§4.3 input 4) | Gravity model with exponential PoP masses, scaled so the busiest link's offered utilization is a chosen value (an experiment setting). The repo's `*_base_tm_0.00e+00_gravity.txt` files are all zeros | `traffic.py` |
 | I6 | Link capacities (§2.1, c_e) | Topology Zoo files give none, so every link gets 100 Gbps (configurable), as elsewhere in the repo | `topology.py` |
 
-## Interpretations made in Phase 2 (need confirmation)
+## Interpretations made in Phase 2 (provisional, accepted for v0)
 
 | # | Paper text | Interpretation | Where |
 |---|---|---|---|
@@ -176,7 +183,7 @@ can be changed in one place.
 | I13 | Evaluating reconnaissance on operational networks (§3.5, §3.7) | On the regional network only the stored RTT/Ricci reconstruction is evaluated; no traceroute or RTT measurements are simulated there. No real traceroute data exists for it (P4), and its "ground truth" graph has unknown provenance (audit #8) and partly default capacities, so a simulated attacker on it would be one more simulated network, not a check of real measurements. Its RQ2 and RQ3 figures therefore show only the oracles, no-knowledge plans, and RTT/Ricci. **Confirmed by the user, 2026-11-03** | `experiments/recon_eval.attempts` |
 
 
-## Interpretations made in Phase 3 (need confirmation)
+## Interpretations made in Phase 3 (provisional, accepted for v0)
 
 | # | Paper text | Interpretation | Where |
 |---|---|---|---|
@@ -186,7 +193,7 @@ can be changed in one place.
 | I17 | Utilization in the MILP (Eq. 16) | The MILP also minimizes its own max utilization (weight 1, next to change weights of about 2, as the existing open Doppler does), so among equally cheap changes it prefers the less loaded one. Its utilization is under multicommodity routing; the operational filter re-checks with the network's routing | `candidates.py` |
 
 
-## Interpretations made in Phase 4 (need confirmation)
+## Interpretations made in Phase 4 (provisional, accepted for v0)
 
 | # | Paper text | Interpretation | Where |
 |---|---|---|---|
@@ -386,6 +393,32 @@ From the 10-epoch ANS runs (`controller/phase4-ANS-doppler`, `-static`,
   stale-damage limit, the security filter now has three conditions: τ, stale
   damage, and vulnerability.
 
+## Open issues at version zero
+
+- **O8. Under the v0 defaults Doppler rarely finds a safe topology, for
+  different reasons on different networks** (found 2026-11-04; runs
+  `defender_epoch/v0` and `controller/v0-*`; open, not decided). In the
+  first epoch no network has a safe candidate. The operationally feasible
+  candidates (14-43 of 50) are rejected as follows:
+  - **CRL and surfNet: τ.** Over 10 epochs no operationally feasible
+    candidate has τ <= 0.5 (lowest: CRL 0.70, surfNet 0.93). On CRL the
+    stretch limit rejects most candidates (393 of 500, median stretch 7x)
+    and the rest add a single link; on surfNet few fail stretch (62 of
+    500), but the feasible changes still leave the attacked traffic where it
+    was. Either way, small changes do not move the attack.
+  - **sprint, ANS, bellCanada: vulnerability.** Candidates with τ <= 0.5
+    exist (first epoch: sprint 19, ANS 9, bellCanada 2), but a fresh
+    attacker would do more damage on them than on G_0, so the vulnerability
+    limit (A6) rejects them. Under Eq. 22 alone they would be safe. Over 10
+    epochs, every such candidate on bellCanada (28) and most on sprint (47
+    of 63) and ANS (94 of 105) fail the vulnerability limit alone.
+
+  Later epochs: sprint moves in 6 of 10 epochs, ANS in 2, the other three
+  never. Directions to try after v0 (none chosen): the Eq. 17 latency
+  allowance (see below) or a larger S_max on the larger networks; a
+  vulnerability tolerance above 1.0 (for example 1.1); objectives that
+  force larger changes; the envelope experiment to map where Doppler works.
+
 ## Possible paper changes (for the authors)
 
 Places where the experiment suggests the draft's text could change. None is
@@ -406,5 +439,4 @@ implemented unless a decision above says so.
 
 ## Proposed (need confirmation)
 
-| # | Question | Proposed default | Needed by |
-|---|---|---|---|
+None open at version zero (2026-11-04).

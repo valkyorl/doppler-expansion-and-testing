@@ -1,0 +1,6 @@
+{
+  "_comment": "Doppler on bellCanada with the accepted defaults (docs/decisions.md); only the run length is set here.",
+  "network": "bellCanada",
+  "epochs": 10,
+  "mode": "doppler"
+}

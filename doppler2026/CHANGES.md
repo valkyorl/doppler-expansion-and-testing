@@ -4,6 +4,67 @@ Every file created or changed for the Doppler 2026 experiment, inside or
 outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first.
 
+## 2026-11-04: Version zero (v0)
+
+The line under the initial implementation (user, 2026-11-04). No
+experiment logic changed; every result below comes from the code as it
+was after the 2026-11-03 defaults change.
+
+- **Results.** Every experiment rerun under the run name `v0`:
+  `recon_eval/v0`, `defender_epoch/v0` (five networks), and
+  `controller/v0-<network>-<mode>` (five networks, `static`, `doppler`,
+  `churn`, 10 epochs). All ran to completion. Checks: the regenerated
+  reconnaissance tables and figure images are byte-identical to the
+  committed Phase 2 ones (the determinism fix changed no Phase 2 result);
+  `v0-sprint-doppler`, `v0-ANS-doppler`, and `v0-ANS-static` equal the
+  earlier `envelope-sprint-doppler`, `o7b-ANS-keep_spare1_vuln`, and
+  `phase4-ANS-static` runs in every column except timings.
+- **Finding, open issue O8** (`docs/decisions.md`): no network has a safe
+  topology in the first epoch. Over 10 epochs Doppler moves on sprint (6
+  times, stale loss 0.9% against 2.3% static) and ANS (twice), never on CRL,
+  bellCanada, or surfNet. On CRL and surfNet no feasible candidate reaches
+  τ <= 0.5; on sprint, ANS, and bellCanada candidates that do are rejected
+  by the vulnerability limit. Churn beats static on CRL and bellCanada.
+- **New files:**
+  - `reproduce_v0.sh`: reruns every v0 step (`recon`, `defender`,
+    `controller`, `figures`) under a chosen run name.
+  - `configs/<network>_<mode>.json` for sprint, CRL, bellCanada, and surfNet
+    (ANS had them); the envelope runs of 2026-11-04 used identical configs
+    from a scratch folder.
+  - `figures/fig_controller_stale_damage.py` (PLAN §10, §4.2 G1): stale-plan
+    damage per epoch by mode, and a summary table. Built at v0 instead of
+    the planned τ-over-epochs figure; it reads `epochs.csv`.
+  - `tests/test_d26_documented_defaults.py`: pins every default the docs
+    quote, with the decision that sets it, and checks that every shipped
+    config loads. Changing a default now fails a test until the docs and
+    the test are updated together.
+  - `docs/v0_summary.md`: the state at v0: what is built, results, issues,
+    departures, what is not built.
+- **Docs corrected** (stale after the 2026-11-03 changes):
+  - `docs/code_paper_discrepancies.md`: section C rewritten with the v0
+    results (the old 13.3% and 14.8% figures predated the v0 defaults; C1's
+    "no safe move" note came from the old defaults; C3 is now met by A6).
+  - `docs/decisions.md`: interpretations I1-I21 marked "provisional,
+    accepted for v0" (user, 2026-11-04); the empty "Proposed" table replaced
+    by "none open"; O8 added.
+  - `PLAN.md`: status; §7 marks which scripts are built; §8 no longer says
+    D10 is open and shows D2's revision; §9 no longer calls transition
+    actions "timestamped" (they are numbered, B7) and lists the Phase 5
+    scripts, the §3.3 oracle rate allocation, O5/O8, and single-seed runs
+    as gaps; §10 marks the figures not built.
+  - `docs/paper_map.md`: rows for Eq. 11 (no net loss, A7), Eq. 18 (churn
+    as selection, A5), Eq. 22 (three conditions, A6), and Eq. 25-31
+    (generate-then-filter, A3, A4).
+  - `configs/ANS_churn.json`: its comment described the old min-overlap
+    objective (O6).
+  - `model.py`: `AttackConfig` docstring said τ divides by the oracle's plan;
+    since O3 option e that holds only when no same-mechanism fresh plan is
+    passed. Docstring only.
+  - `README.md`: v0 status, `reproduce_v0.sh`, the per-network configs.
+- **Removed:** the empty folder `controller/envelope-surfNet-doppler` (that
+  run was stopped because `v0-surfNet-doppler` has the same config). The
+  interrupted, empty `controller/o7-ANS-keep_lag2` is still there.
+
 ## 2026-11-03: New defaults: vulnerability limit and one spare transponder per PoP
 
 **Behavior change** (user, after the O7 runs): every run now uses

@@ -92,7 +92,9 @@ class AttackConfig:
     ``endpoints`` lists the PoPs the attacker can send from and to; ``None``
     means every PoP (D8).
     ``oracle_knowledge`` says which oracle builds the fresh plan A* that η
-    (Eq. 10) and τ (Eq. 1) divide by (decision D15, flagged for review):
+    (Eq. 10) divides by, and τ (Eq. 1) when no fresh plan of the attacker's
+    own mechanism is supplied (decision D15, flagged for review; the
+    defender's τ uses the attacker re-measuring, O3 option e):
     ``"benign"`` (default) also knows the benign traffic matrix and targets
     the link where its attack does the most damage; ``"routing"`` is the
     paper's oracle (§3.2), which knows only topology and routing.
