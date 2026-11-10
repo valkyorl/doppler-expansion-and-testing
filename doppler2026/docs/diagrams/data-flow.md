@@ -1,7 +1,7 @@
 # Data flow
 
 From inputs to paper figures. Every figure and table is regenerated from saved
-result files, never edited by hand (`PLAN.md` §10).
+result files, never edited by hand (`docs/results_schema.md`).
 
 ```mermaid
 flowchart LR
@@ -30,5 +30,5 @@ flowchart LR
     topo & tm & meas & cfg --> runner
     runner --> c & ep & ca & tf & rc & tj
     ep & ca & tf & rc --> figs --> pdf
-    tj -.->|"replayed later (PLAN §9)"| testbed
+    tj -.->|"replayed later (docs/gaps.md)"| testbed
 ```

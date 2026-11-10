@@ -8,13 +8,39 @@ Edit them freely; they are read at the start of each conversation.
 - The active work is a new Doppler experiment that implements the draft paper
   *Doppler-security-26* (Aug 2026). All files specific to this experiment and
   paper live in `doppler2026/`.
-- Read `doppler2026/PLAN.md` before starting work on it, and
-  `doppler2026/CHANGES.md` to see what has already been done.
+- Read `doppler2026/docs/v0_summary.md` before starting work on it, and
+  `doppler2026/CHANGES.md` to see what has changed since version zero.
+- `doppler2026/archive/` holds superseded documents (the v0 development
+  plan and change log). Do not read or search it by default: exclude it from
+  searches, and open it only when a task needs history (why something was
+  decided, what an earlier run used). Say so when you do. "PLAN §n" in code
+  and docs refers to `doppler2026/archive/v0/PLAN.md`.
 - The paper-vs-code audit that motivated this work is
   `docs/knowledge/analysisResults/doppler-paper-vs-code.html`.
 - A copy of the paper draft should be kept at
   `doppler2026/docs/Doppler_security_26.pdf`. If it is missing, ask the
   user for it rather than working from memory of the paper.
+
+## Research ownership
+
+This is a research project, and the user owns its scientific decisions:
+the objective function, the threat model, assumptions, metrics, and
+experimental methodology (including networks, parameters, baselines, and
+how results are judged).
+
+- You may suggest scientific choices, with options and a recommendation, but
+  do not make them. The user must know about each one and has the final say.
+  This applies even to choices that look small (a default value, a
+  tie-break, what counts as a "move"), and even when a change seems needed
+  to make code run.
+- The user keeps their own, human-written document of the differences
+  between the paper and the code, all assumptions, and recent experimental
+  results. Do not edit it. The docs in `doppler2026/docs/` are your records
+  and do not replace it.
+- Before carrying out a request, say whether it will introduce a new
+  assumption, a new departure from the paper, or a change to the
+  methodology, and what each one is, so the user can record or reject it.
+  When reporting finished work, list any that resulted.
 
 ## Rules for changes
 
@@ -45,10 +71,10 @@ Edit them freely; they are read at the start of each conversation.
    exists, the publication to cite. Mark any citation written from memory as
    unverified; never present an unchecked citation as confirmed.
 6. **Keep results reproducible for figures.** Experiments write results in the
-   schema described in `doppler2026/PLAN.md` (§10). Figures and tables
+   schema described in `doppler2026/docs/results_schema.md`. Figures and tables
    are generated only by scripts in `doppler2026/figures/` that read
    those result files, never by hand.
 7. **Track known gaps instead of hiding them.** Parts of the paper that cannot
-   be implemented yet are listed in `doppler2026/PLAN.md` (§9) with
+   be implemented yet are listed in `doppler2026/docs/gaps.md` with
    how they will plug in later. Do not write code or results that imply a gap
    has been closed.

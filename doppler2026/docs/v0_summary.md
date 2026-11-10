@@ -3,7 +3,8 @@
 Date: 2026-11-04. Written for anyone picking up the experiment after the
 initial implementation: what exists, what it shows so far, what goes wrong,
 and what the paper promises that is not built yet. It replaces reading
-`PLAN.md` and `CHANGES.md` end to end; those record how v0 was reached.
+the v0 plan and change log end to end; those record how v0 was reached and
+are archived in `archive/v0/`.
 
 v0 is a line drawn under the first implementation attempt, not a finished
 experiment. Every module of the paper's design (§3 reconnaissance, §4
@@ -175,7 +176,7 @@ depend on them, but only I3, I4, and I13 were reviewed one by one.
 
 ## 6. Planned but not built
 
-From `PLAN.md` §7 and §9 (gaps with their plug-in points):
+From §7 of the v0 plan and `docs/gaps.md` (gaps with their plug-in points):
 
 - **Phase 5 experiment scripts.** None exists. Each would sweep configs and
   write the same result schema:
@@ -215,4 +216,5 @@ From `PLAN.md` §7 and §9 (gaps with their plug-in points):
 | `docs/paper_map.md` | Paper section to module |
 | `docs/references.md` | Libraries, methods, datasets, citations (unverified ones marked) |
 | `README.md` | Install and run |
-| `PLAN.md`, `CHANGES.md` | The development plan and log that led to v0 |
+| `docs/gaps.md`, `docs/results_schema.md` | Known gaps; the result schema and figures (from the v0 plan) |
+| `archive/v0/PLAN.md`, `archive/v0/CHANGES.md` | The development plan and log that led to v0 (archived 2026-11-10) |

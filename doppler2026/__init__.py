@@ -9,6 +9,8 @@ carried within the operator's limits.
 This package holds everything specific to that experiment. It is run from
 the repository root, for example ``python -m doppler2026.run``.
 
-Start with ``README.md`` in this folder, then ``PLAN.md`` for the design and
-``docs/paper_map.md`` for which module implements which part of the paper.
+Start with ``README.md`` in this folder, then ``docs/v0_summary.md`` for the
+state of the work and ``docs/paper_map.md`` for which module implements which
+part of the paper. References to "PLAN §n" in docstrings point to the v0
+development plan, archived at ``archive/v0/PLAN.md``.
 """

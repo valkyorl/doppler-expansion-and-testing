@@ -266,7 +266,7 @@ class RelativeDamage:
     extra: tuple[Comparison, ...] = ()
 
     def as_row(self) -> dict[str, object]:
-        """Flatten to one row of ``transferability.csv`` (PLAN §10)."""
+        """Flatten to one row of ``transferability.csv`` (docs/results_schema.md)."""
         row: dict[str, object] = {
             "plan_topology_id": self.plan_topology_id,
             "evaluated_on": self.evaluated_on,

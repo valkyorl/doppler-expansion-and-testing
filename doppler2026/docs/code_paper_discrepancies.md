@@ -161,7 +161,7 @@ not yet built), or **open** (a promise the results do not yet support).
   from the circuits assigned to it.
 - **Code:** a new link gets the network's median link capacity.
 
-### B7. Transitions are evaluated at flow level only [I20; PLAN §9] — in effect
+### B7. Transitions are evaluated at flow level only [I20; docs/gaps.md] — in effect
 
 - **Paper (§1, §4.13):** measures "routing convergence, packet loss, and
   latency during topology transitions" and separately times circuit

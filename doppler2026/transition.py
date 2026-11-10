@@ -21,7 +21,7 @@ Order (decision D31, "mixed"):
 A transition is make-before-break when step 2 removed nothing. The network
 is evaluated after every step with the benign demand only (connectivity,
 MLU, benign loss including unroutable demand): flow-level metrics, not
-packet-level effects, which are a gap (PLAN §9). The ordered list of actions
+packet-level effects, which are a gap (docs/gaps.md). The ordered list of actions
 is what a testbed would replay; steps are numbered, not timed.
 """
 
@@ -77,7 +77,7 @@ class Transition:
         return "make_before_break" if self.make_before_break else "break_before_make"
 
     def as_record(self) -> dict:
-        """One line of ``transitions.jsonl`` (PLAN §10)."""
+        """One line of ``transitions.jsonl`` (docs/results_schema.md)."""
         return {
             "kind": self.kind,
             "added": sorted("-".join(e) for e in self.added),

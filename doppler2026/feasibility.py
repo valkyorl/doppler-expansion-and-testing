@@ -15,7 +15,7 @@ D16):
   within optical reach (D6; no limit by default).
 - The other §4.4 checks (ROADM placement and switching, wavelength and
   spectrum) are a pluggable ``optical_check``. The default allows every
-  link; this is a recorded assumption (PLAN §9, "Optical data").
+  link; this is a recorded assumption (docs/gaps.md, "Optical data").
 - Transponder availability, also listed in §4.4, is not checked here: it
   is a constraint of the topology optimizer (Eq. 11, ``candidates.py``),
   because it depends on which other links are active.

@@ -5,7 +5,7 @@ Three levels, from least to most security-relevant (§3.4):
 1. Topology recovery (RQ1): precision, recall, and F1 of inferred edges
    against the true edge set. The paper reports these only against
    independently validated ground truth, so ``topology_recovery`` refuses
-   to run otherwise (PLAN §9, "Independent ground truth"). In simulation the
+   to run otherwise (docs/gaps.md, "Independent ground truth"). In simulation the
    true network is the one the measurements were generated on, so it is
    ground truth by construction (interpretation I12); results are labelled
    with their ground-truth source so simulated numbers are never mistaken

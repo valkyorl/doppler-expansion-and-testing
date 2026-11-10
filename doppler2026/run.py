@@ -1,4 +1,4 @@
-"""Experiment entry point: run the Doppler controller from a JSON config (PLAN §3, §10).
+"""Experiment entry point: run the Doppler controller from a JSON config (PLAN §3; results schema).
 
 Run from the repository root::
 

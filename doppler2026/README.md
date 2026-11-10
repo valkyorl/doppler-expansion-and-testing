@@ -28,7 +28,7 @@ is listed in `docs/code_paper_discrepancies.md`.
 | `recon/inferred.py` | Inferred graph + edge ranking → attack plan (shared by both) | §3.3 |
 | `recon/metrics.py` | Topology recovery, P@k, path-level recovery | §3.4, Eq. 9 |
 | `damage.py` | Damage of a plan; η against a fresh oracle plan, τ against any supplied fresh plan; budget to disrupt | §2.4, §3.4, Eq. 1, Eq. 10 |
-| `results.py` | Result folders, `config.json` with provenance, tidy CSVs | PLAN §10 |
+| `results.py` | Result folders, `config.json` with provenance, tidy CSVs | docs/results_schema.md |
 | `experiments/recon_eval.py` | The reconnaissance evaluation | §3.7 RQ1–RQ3 |
 | `feasibility.py` | Feasible IP links E* from the fiber graph | §4.4 |
 | `candidates.py` | MILP candidate pool (transponders, benign flow, capacity, U_max) | §4.5–4.6, §4.10–4.11, Eq. 11–16 |
@@ -38,8 +38,8 @@ is listed in `docs/code_paper_discrepancies.md`.
 | `experiments/defender_epoch.py` | One defender epoch per network (the Phase 3 check) | §4.3–4.11 |
 | `transition.py` | E_add / E_remove, transition order, intermediate states | §4.13, Eq. 32–33 |
 | `controller.py` | The multi-epoch control loop, attacker lag, history; static and churn baselines | §4.3, §4.14 |
-| `run.py`, `configs/` | Run the controller from a JSON config | PLAN §3, §10 |
-| `reproduce_v0.sh` | Rerun every v0 experiment and build every figure | PLAN §10 |
+| `run.py`, `configs/` | Run the controller from a JSON config | `docs/results_schema.md` |
+| `reproduce_v0.sh` | Rerun every v0 experiment and build every figure | docs/results_schema.md |
 | `figures/fig_controller_stale_damage.py` | Stale-plan damage per epoch: static, Doppler, churn | §4.2 G1 |
 
 A minimal example, from the repository root:
@@ -74,8 +74,10 @@ print(result.ratio, result.other_ratio)   # about 0.167 (vs D15), 1.0 (vs itself
 | File | What it tells you |
 |---|---|
 | `docs/v0_summary.md` | **Start here:** the state at version zero, issues, and what is not built |
-| `PLAN.md` | The full design, phases, experiments, and known gaps |
-| `CHANGES.md` | Every file created or changed for this work, and why |
+| `CHANGES.md` | Every file created or changed since v0, and why |
+| `docs/gaps.md` | Parts of the paper that cannot be built yet, with their plug-in points |
+| `docs/results_schema.md` | The result files every experiment writes, and the figures |
+| `archive/v0/` | The development plan and change log that led to v0. Historical: read only when the history is needed. "PLAN §n" in code and docs means `archive/v0/PLAN.md` |
 | `docs/paper_map.md` | Which module implements which paper section and equation |
 | `docs/decisions.md` | Choices the paper leaves open, and what was decided |
 | `docs/code_paper_discrepancies.md` | Where the implementation departs from what the draft spells out, and promises the results do not yet support |
@@ -118,7 +120,7 @@ python -m doppler2026.experiments.recon_eval --networks ANS CRL bellCanada sprin
 ```
 
 Results go to `data/results/doppler2026/recon_eval/<run_id>/` (see
-`PLAN.md` §10). `data/` is git-ignored, so results stay local; `config.json`
+`docs/results_schema.md`). `data/` is git-ignored, so results stay local; `config.json`
 in each run is enough to reproduce it.
 
 Run this experiment's tests:
@@ -165,5 +167,5 @@ same results exactly (timings aside).
 
 ## Layout
 
-The layout is described in `PLAN.md` §3. Modules are added as each phase
-implements them, so the folder only contains what currently works.
+The modules are listed in "What exists so far" above; the original layout
+plan is §3 of `archive/v0/PLAN.md`.

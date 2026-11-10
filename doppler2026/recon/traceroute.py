@@ -8,7 +8,7 @@ over the measured pairs (Eq. 6), and the plan is built from Ĝ_tr as in §3.3
 
 Measurements reach the attacker as a ``TracerouteObservation``. Today the
 only source is ``simulate``; a loader for real traceroute data would return
-the same type (PLAN §9, "Real RTT / traceroute measurements").
+the same type (docs/gaps.md, "Real RTT / traceroute measurements").
 
 How the simulation works (interpretation I9 in ``docs/decisions.md``):
 

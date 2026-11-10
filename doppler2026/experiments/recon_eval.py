@@ -35,7 +35,7 @@ Run from the repository root::
     python -m doppler2026.experiments.recon_eval                # default networks
     python -m doppler2026.experiments.recon_eval --networks ANS sprint --run-id test
 
-Output (PLAN §10): ``data/results/doppler2026/recon_eval/<run_id>/`` with
+Output (docs/results_schema.md): ``data/results/doppler2026/recon_eval/<run_id>/`` with
 ``config.json``, ``networks.csv`` (one row per network, for Table 1),
 ``recon.csv`` (RQ1, RQ2, budget to disrupt; one metric per
 row) and ``transferability.csv`` (RQ3; one plan and budget per row, with η in
@@ -66,7 +66,7 @@ from ..traffic import benign_demand
 
 EXPERIMENT = "recon_eval"
 # Comcast is left out by default: its origin is unknown and, at 149 nodes, it
-# is much slower (PLAN.md §9). Run it explicitly with --networks Comcast.
+# is much slower (docs/gaps.md). Run it explicitly with --networks Comcast.
 NETWORKS = ("ANS", "CRL", "bellCanada", "sprint", "surfNet")
 
 
@@ -359,7 +359,7 @@ def network_row(network: Network, config: ReconEvalConfig) -> dict:
     """One row of ``networks.csv``: what paper Table 1 reports for a network.
 
     Vantage-point counts are the simulated coverages used, not real
-    measurement infrastructure. No network has optical data (PLAN §9).
+    measurement infrastructure. No network has optical data (docs/gaps.md).
     """
     nodes = network.topology.number_of_nodes()
     simulated = network.name != "regional"

@@ -25,7 +25,7 @@ Run from the repository root::
 
     python -m doppler2026.experiments.defender_epoch --networks ANS
 
-Output (PLAN §10): ``data/results/doppler2026/defender_epoch/<run_id>/`` with
+Output (docs/results_schema.md): ``data/results/doppler2026/defender_epoch/<run_id>/`` with
 ``config.json``; ``candidates.csv`` (one row per candidate: filter outcomes
 and reasons, T(G'), secondary scores, whether selected);
 ``transferability.csv`` (one row per (plan, topology) pair: the security

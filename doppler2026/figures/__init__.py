@@ -1,1 +1,1 @@
-"""Figure and table scripts (PLAN.md §10). Each reads only result files."""
+"""Figure and table scripts (docs/results_schema.md). Each reads only result files."""

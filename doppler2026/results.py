@@ -1,4 +1,4 @@
-"""Writing result files in the schema of PLAN.md §10.
+"""Writing result files in the schema of docs/results_schema.md.
 
 Every run gets its own folder, ``data/results/doppler2026/<experiment>/<run_id>/``,
 with a ``config.json`` that is enough to rerun it (the resolved settings,

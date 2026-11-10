@@ -2,7 +2,7 @@
 
 Where each part of *Doppler-security-26* is implemented. Status is one of
 **planned**, **implemented**, or **gap** (cannot be implemented yet; see
-`PLAN.md` §9). Update this table whenever a module is added or changed.
+`docs/gaps.md`). Update this table whenever a module is added or changed.
 
 ## §2 Threat model
 
@@ -26,7 +26,7 @@ Where each part of *Doppler-security-26* is implemented. Status is one of
 | §3.2 | No-knowledge attacker | `recon/random_plan.random_plan` | implemented |
 | §3.3, Eq. 8 | Equal split of budget R_A | `attack_plans.make_plan`; budget as a capacity multiple: `attack_plans.budget_from_capacity` (D4) | implemented |
 | §3.3 | Pairs whose inferred paths cross the target | `recon/inferred.plan_from_ranking` (I8) | implemented |
-| §3.3 | Oracle rate allocation (minimum budget to overload a target; sensitivity experiment) | — | planned (not in Phase 2; see `PLAN.md` §9) |
+| §3.3 | Oracle rate allocation (minimum budget to overload a target; sensitivity experiment) | — | planned (not in Phase 2; see `docs/gaps.md`) |
 | §3.4 | Precision, recall, F1 | `metrics.topology_recovery` (refuses unvalidated ground truth; I12) | implemented |
 | §3.4, Eq. 9 | P@k, path-level critical-link recovery | `metrics.precision_at_k`, `metrics.path_level_recovery`; C_k from `oracle.rank_links` | implemented |
 | §3.4 | Attack-effectiveness measures (bullets 1 to 4) | `model.DamageReport`, `damage.evaluate_damage` (I1, I2) | implemented |

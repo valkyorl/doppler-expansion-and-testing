@@ -13,7 +13,7 @@ in the real network (§3.1.1). Metrics treat it that way
 
 Measurements reach the attacker as ``RttMeasurements``. Today the only
 source is ``simulate``; a loader for real RTT data would return the same
-type (PLAN §9). The regional reconstruction already in the repository is an
+type (docs/gaps.md). The regional reconstruction already in the repository is an
 inferred graph, not measurements, so it has its own loader
 (``load_regional_reconstruction``).
 
