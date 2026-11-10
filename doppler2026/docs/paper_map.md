@@ -55,7 +55,7 @@ Where each part of *Doppler-security-26* is implemented. Status is one of
 | §4.9, Eq. 23–24 | Safe set and pairwise τ | `security.pairwise_transferability`; safe set in `experiments/defender_epoch.py` | implemented |
 | §4.10 | Local and expanded candidate sets | `candidates.variable_links` (local = old "conservative" + history targets, liberal, expanded; D23) | implemented |
 | §4.11, Eq. 25–31 | Pool enumeration and random selection | `candidates.generate` (no-good cuts, D22 objectives; T(G′) is a filter afterwards, not minimized: discrepancies A3, A4), `selection.select` (D9, D24) | implemented (generate-then-filter) |
-| §4.12 | Optimization time budget T_opt | `CandidateConfig.time_limit` (D25) | implemented |
+| §4.12 | Optimization time budget T_opt | `CandidateConfig.time_limit` (D25); with `pool_counts = "accepted"` it covers solving and filtering, and K counts safe candidates (D33) | implemented |
 | §4.13, Eq. 32–33 | E_add / E_remove, make-before-break | `transition.order_changes` (D31), `transition.evaluate_transition` (flow-level intermediate states) | implemented |
 | §4.13 | Packet-level convergence and loss | testbed replay of `transitions.jsonl` | gap |
 | §4.14 | Reconfiguration interval T_R vs recon lag | `ControllerConfig.recon_lag` (L in epochs, default 2, at least 2 for Doppler; D10); stale-plan damage D(A_{t-L}, G_t) per epoch | implemented (epochs are abstract; real timings are Phase 5) |

@@ -168,18 +168,13 @@ def defender_step(
     routing, damage = config.routing, config.damage
     feasible = feasible_links(original, config.feasibility)
     pool_config = replace(config.candidates, seed=config.candidates.seed + epoch)
-    pool = cand.generate(
-        current,
-        original,
-        feasible,
-        benign,
-        pool_config,
-        targets=[e.plan.target for e in history if e.plan.target],
-        guidance=lambda links: attack_guidance(
-            current, original, links, [e.plan for e in history], routing
-        ),
+    targets = [e.plan.target for e in history if e.plan.target]
+    # The links the MILP may choose from, and their capacities, as generate()
+    # computes them; needed here so candidates can be filtered while the
+    # pool is generated (pool_counts = "accepted").
+    capacities = cand.link_capacities(
+        original, cand.variable_links(current, feasible, targets, pool_config)
     )
-    capacities = cand.link_capacities(original, pool.variable_links)
     reference = reference_lengths(
         original, benign, routing, config.operational.stretch_metric
     )
@@ -187,8 +182,9 @@ def defender_step(
     rows: list[dict] = []
     transfer_rows: list[dict] = []
     safe: dict[str, tuple] = {}
-    by_id = {c.topology_id: c for c in pool.candidates}
-    for candidate in pool.candidates:
+
+    def evaluate(candidate: cand.Candidate) -> bool:
+        """Operational and security filters for one candidate; True if safe."""
         graph = cand.build_topology(original, candidate.links, capacities)
         operational = operational_check(
             graph, benign, reference, routing, config.operational
@@ -263,6 +259,27 @@ def defender_step(
             )
         row["secondary_score"] = safe.get(candidate.topology_id, (None, None))[1]
         rows.append(row)
+        return passed
+
+    counting_accepted = pool_config.pool_counts == "accepted"
+    pool = cand.generate(
+        current,
+        original,
+        feasible,
+        benign,
+        pool_config,
+        targets=targets,
+        guidance=lambda links: attack_guidance(
+            current, original, links, [e.plan for e in history], routing
+        ),
+        # Eq. 31 verbatim: filter each candidate as it is found and count
+        # the safe ones (discrepancy A3).
+        accept=evaluate if counting_accepted else None,
+    )
+    if not counting_accepted:
+        for candidate in pool.candidates:
+            evaluate(candidate)
+    by_id = {c.topology_id: c for c in pool.candidates}
 
     chosen = None
     acceptable: tuple[str, ...] = ()

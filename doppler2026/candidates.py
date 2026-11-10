@@ -5,6 +5,18 @@ and traffic constraints, then filters them (§4.11, Eq. 31). The security
 objective T(G') is not linear, so it is not in this model: the security
 filter (``security.py``) applies it afterwards (PLAN §2, generate-then-filter).
 
+What K counts (``pool_counts``, discrepancy A3):
+
+- ``"generated"`` (default): the loop stops after K generated candidates;
+  the filters run on all of them afterwards, and T_opt covers the solver
+  only.
+- ``"accepted"``: Eq. 31 read verbatim. Each candidate is passed to an
+  ``accept`` callback (the caller's filters) as soon as it is found, and the
+  loop stops after K accepted candidates. T_opt is measured on the wall
+  clock from the start, so it covers solving and filtering together
+  (§4.12: "Doppler selects from the safe configurations found so far").
+  Meant for the solver-budget experiment (§4.12).
+
 The model, over a set L of IP links that may be active:
 
 - x_e ∈ {0, 1} for each e ∈ L: link e is active (§4.4).
@@ -88,6 +100,7 @@ from .recon.inferred import Edge, edge_key
 from .topology import topology_id as compute_topology_id
 
 CANDIDATE_SETS = ("local", "liberal", "expanded")
+POOL_COUNTS = ("generated", "accepted")
 OBJECTIVES = ("random_weights", "security_guided", "changes_plus_mlu", "min_overlap")
 
 
@@ -96,7 +109,11 @@ class CandidateConfig:
     """Settings of the candidate pool (decisions D3, D5, D17, D18, D22, D23, D25)."""
 
     pool_size: int = 50
-    """K, the most candidates enumerated per epoch (D3)."""
+    """K, the most candidates per epoch (D3); what it counts is ``pool_counts``."""
+    pool_counts: str = "generated"
+    """``"generated"``: K generated candidates, filtered afterwards (default,
+    discrepancy A3); ``"accepted"``: generate and filter until K candidates
+    pass, as Eq. 31 reads (module docstring)."""
     time_limit: float = 60.0
     """T_opt in seconds for the whole pool (D25, §4.12)."""
     u_max: float = 0.8
@@ -122,6 +139,8 @@ class CandidateConfig:
     def __post_init__(self) -> None:
         if self.candidate_set not in CANDIDATE_SETS:
             raise ValueError(f"candidate_set must be one of {CANDIDATE_SETS}")
+        if self.pool_counts not in POOL_COUNTS:
+            raise ValueError(f"pool_counts must be one of {POOL_COUNTS}")
         if self.objective not in OBJECTIVES:
             raise ValueError(f"objective must be one of {OBJECTIVES}")
         if self.pool_size < 1 or self.time_limit <= 0:
@@ -152,12 +171,14 @@ class Candidate:
 class CandidatePool:
     candidates: tuple[Candidate, ...]
     status: str
-    """``"pool_full"``, ``"exhausted"`` (no further feasible topology),
-    ``"time_limit"``, or ``"infeasible"`` (no candidate at all)."""
+    """``"pool_full"`` (K counted), ``"exhausted"`` (no further feasible
+    topology), ``"time_limit"``, or ``"infeasible"`` (no candidate at all)."""
     solves: int
     wall_time: float
     variable_links: tuple[Edge, ...]
     """L: the links the MILP could choose from."""
+    accepted: int | None = None
+    """Candidates ``accept`` passed (``pool_counts = "accepted"`` only)."""
 
 
 def transponders(original: nx.Graph, config: CandidateConfig) -> dict[str, int]:
@@ -368,6 +389,7 @@ def generate(
     *,
     targets: Iterable[Pair] = (),
     guidance: Callable[[tuple[Edge, ...]], Mapping[Edge, float]] | None = None,
+    accept: Callable[[Candidate], bool] | None = None,
 ) -> CandidatePool:
     """Enumerate up to K candidate topologies around ``current`` (§4.11, Eq. 31).
 
@@ -376,8 +398,13 @@ def generate(
     estimate D_t; ``targets`` are the links attacked by plans in the history
     (they widen the local candidate set, D23). ``guidance`` maps the
     variable links to their security guidance g_e; it is required by the
-    ``security_guided`` objective.
+    ``security_guided`` objective. ``accept`` is called on each candidate as
+    it is found and is required when ``pool_counts`` is ``"accepted"``; K
+    then counts the candidates it passes.
     """
+    counting_accepted = config.pool_counts == "accepted"
+    if counting_accepted and accept is None:
+        raise ValueError('pool_counts = "accepted" needs an accept callback')
     started = time.perf_counter()
     links = variable_links(current, feasible, targets, config)
     capacities = link_capacities(original, links)
@@ -415,9 +442,10 @@ def generate(
 
     exclude(current_links)  # at least one change
     found: list[Candidate] = []
+    accepted = 0
     status = "time_limit"
     solves = 0
-    while len(found) < config.pool_size:
+    while (accepted if counting_accepted else len(found)) < config.pool_size:
         remaining = config.time_limit - (time.perf_counter() - started)
         if remaining <= 0:
             break
@@ -459,6 +487,8 @@ def generate(
             )
         )
         exclude(selected)
+        if counting_accepted and accept(found[-1]):
+            accepted += 1
     else:
         status = "pool_full"
     return CandidatePool(
@@ -467,4 +497,5 @@ def generate(
         solves=solves,
         wall_time=time.perf_counter() - started,
         variable_links=links,
+        accepted=accepted if counting_accepted else None,
     )

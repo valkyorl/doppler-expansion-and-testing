@@ -49,7 +49,7 @@ is empty and Doppler stays on G_0 (D32).
 - **Paper change:** state the lag assumption next to Eq. 19, or index the
   history from G_t if a one-epoch lag is in scope.
 
-### A3. K counts candidates before the security filter [PLAN §2] — in effect
+### A3. K counts candidates before the security filter [PLAN §2, D33] — in effect (default); Eq. 31 verbatim available
 
 - **Paper (§4.11, Eq. 31):** Doppler "enumerates up to K candidate
   configurations satisfying T(G') <= τ_max and all operational constraints".
@@ -57,10 +57,30 @@ is empty and Doppler stays on G_0 (D32).
   flow, and utilization constraints (Eq. 11-16); the operational filter
   (ECMP routing, stretch, connectivity) and the security filter (Eq. 22) run
   afterwards, so the safe pool is usually much smaller than K.
-- **Why:** T(G') is not linear (it routes attack traffic and builds a fresh
-  attacker plan per candidate), so it cannot be a MILP constraint.
-- **Paper change:** describe the enumeration as generate-then-filter and
-  report pool sizes after each filter.
+- **Why:** a choice, not forced. T(G') is not linear (it routes attack
+  traffic and builds a fresh attacker plan per candidate), so it cannot be a
+  MILP constraint and must be checked after the solver; that alone would
+  still allow counting K after the filters. Counting before them was chosen
+  (v0 plan) because it keeps the cost of an epoch predictable when safe
+  candidates are rare (often none of 50), gives the churn baseline the same
+  pool size, and separates the counts the paper asks to report (feasible
+  solutions; time to the first safe topology). The paper is itself
+  ambiguous: §4.12 has the solver accumulate candidates meeting the "hard
+  optical, capacity, and performance constraints" and then select "from the
+  safe configurations found so far", which is generate-then-filter.
+- **Option:** `pool_counts = "accepted"` follows Eq. 31 verbatim: filter
+  each candidate as it is found and stop after K safe ones (D33). Off by
+  default; a testing and comparison option for the solver-budget experiment
+  (§4.12). When it runs, two things differ from the default mode, and are
+  left as they are unless the option is promoted:
+  - **Timing:** T_opt is measured on the wall clock from the start, so it
+    covers solving and filtering together; in the default mode it covers
+    the solver only. Time budgets are not comparable across the modes.
+  - **Churn:** the structural-churn baseline has no security filter, so its
+    "accepted" candidates are the operationally feasible ones: its K counts
+    a different thing than Doppler's.
+- **Paper change:** make Eq. 31 and §4.12 agree on what K counts, and report
+  pool sizes after each filter.
 
 ### A4. The MILP does not minimize T(G') [O5] — in effect
 

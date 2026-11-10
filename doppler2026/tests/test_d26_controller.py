@@ -300,3 +300,28 @@ def test_controller_runs_on_a_synthetic_network_and_logs_cost(tmp_path):
     assert first["links"] == 9
     assert 0 < first["current_mlu"] <= 0.5 + 1e-9  # benign scaled to 50% peak
     assert first["current_max_stretch"] == pytest.approx(1.0)  # G_0 itself
+
+
+def test_accepted_pool_stops_at_k_safe_candidates(tmp_path):
+    """Doppler with pool_counts = "accepted": at most K safe, and every
+    generated candidate is filtered."""
+    from doppler2026.synthetic import SyntheticConfig, generate, write
+
+    write(generate(SyntheticConfig(name="k4", nodes=4, mean_degree=3.0)), tmp_path)
+    defender = DefenderConfig(
+        candidates=cand.CandidateConfig(pool_size=1, pool_counts="accepted")
+    )
+    result = run(
+        ControllerConfig(
+            network="k4", topology_dir=str(tmp_path), epochs=2, defender=defender
+        )
+    )
+    epoch1 = result.epochs[1]
+    assert epoch1["safe"] <= 1
+    if epoch1["safe"] == 1:
+        assert epoch1["pool_status"] == "pool_full"
+        last = max(
+            (c for c in result.candidates if c["epoch"] == 1),
+            key=lambda c: c["solve_index"],
+        )
+        assert last["safe"]  # the loop stopped on the K-th safe candidate

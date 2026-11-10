@@ -21,6 +21,7 @@ DOCUMENTED = {
     "defender.feasibility.max_km": (None, "D6"),
     "defender.candidates.pool_size": (50, "D3"),
     "defender.candidates.time_limit": (60.0, "D25"),
+    "defender.candidates.pool_counts": ("generated", "D33"),
     "defender.candidates.u_max": (0.8, "D5"),
     "defender.candidates.candidate_set": ("local", "D23"),
     "defender.candidates.objective": ("random_weights", "D22, O5"),

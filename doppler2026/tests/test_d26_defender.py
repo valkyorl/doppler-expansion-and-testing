@@ -177,6 +177,41 @@ def test_pool_is_reproducible():
     assert [c.links for c in first.candidates] == [c.links for c in second.candidates]
 
 
+def test_pool_can_count_accepted_candidates():
+    """pool_counts = "accepted" (Eq. 31 verbatim, A3): K counts what passes."""
+    graph = dumbbell()
+    feasible = feasible_links(graph)
+    config = cand.CandidateConfig(
+        pool_size=2, candidate_set="expanded", pool_counts="accepted"
+    )
+    seen = []
+
+    def every_other(candidate):
+        seen.append(candidate)
+        return len(seen) % 2 == 0
+
+    pool = cand.generate(
+        graph, graph, feasible, uniform(graph, 1.0), config, accept=every_other
+    )
+    assert pool.status == "pool_full" and pool.accepted == 2
+    assert list(pool.candidates) == seen and len(seen) == 4
+    with pytest.raises(ValueError, match="accept callback"):
+        cand.generate(graph, graph, feasible, uniform(graph, 1.0), config)
+
+
+def test_pool_counts_generated_by_default():
+    graph = dumbbell()
+    pool = cand.generate(
+        graph,
+        graph,
+        feasible_links(graph),
+        uniform(graph, 1.0),
+        cand.CandidateConfig(pool_size=3, candidate_set="expanded"),
+        accept=lambda c: False,  # ignored when K counts generated candidates
+    )
+    assert len(pool.candidates) == 3 and pool.accepted is None
+
+
 def test_pool_refuses_demand_beyond_u_max():
     """60 on a 100 link exceeds U_max = 0.5: no topology can carry it."""
     graph = line()

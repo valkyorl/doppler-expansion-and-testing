@@ -5,6 +5,35 @@ outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first. Changes up to version zero (2026-11-04) are
 in the v0 change log, `doppler2026/archive/v0/CHANGES.md` in the git tag `v0`.
 
+## 2026-11-10: What K counts, as an option (D33, discrepancy A3)
+
+The user chose option (c): keep the default, and add Eq. 31 read verbatim
+as an option for the solver-budget experiment (§4.12).
+
+- `candidates.py`: `CandidateConfig.pool_counts`, `"generated"` (default,
+  unchanged) or `"accepted"`; `generate()` takes an optional `accept`
+  callback, called on each candidate as it is found, and in `"accepted"`
+  mode stops after K accepted candidates. `CandidatePool.accepted` records
+  the count. T_opt is measured on the wall clock from the start, so in
+  that mode it covers filtering too.
+- `controller.py`: `defender_step`'s per-candidate filtering moved into a
+  local `evaluate()`, called after generation (default) or from inside it
+  (`"accepted"`). The variable links' capacities are now computed before
+  generation (the same values `generate()` computes). Default behaviour
+  unchanged: a rerun of `sparsification_synthetic4` matched
+  `lag2-2026-11-10` exactly in `summary.csv`, `epochs.csv`,
+  `candidates.csv`, and `transferability.csv` (timings aside).
+- Docs: `code_paper_discrepancies.md` A3 (the "Why" now says it is a
+  choice and why; the option; the paper's own §4.11/§4.12 ambiguity),
+  `decisions.md` D33, `paper_map.md` (§4.12). The option's two differences
+  from the default mode (T_opt also covers filtering; churn counts
+  operationally feasible candidates) are recorded in A3 and D33 as known
+  differences of a comparison option, at the user's request, not changed.
+- Tests: two pool tests (`test_d26_defender.py`), one controller test on a
+  4-PoP network (`test_d26_controller.py`), the documented default.
+  On `synthetic4` epoch 1, `"accepted"` with K = 1 stops after 13
+  candidates (the first safe one) instead of exhausting all 37.
+
 ## 2026-11-10: History as Eq. 19, recon lag at least 2 (D10, D30, D32)
 
 Decided by the user. **Changes existing behaviour:** results of every
