@@ -1,6 +1,0 @@
-{
-  "_comment": "Doppler on sprint with the accepted defaults (docs/decisions.md); only the run length is set here.",
-  "network": "sprint",
-  "epochs": 10,
-  "mode": "doppler"
-}

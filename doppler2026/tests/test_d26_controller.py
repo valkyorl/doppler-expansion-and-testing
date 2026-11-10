@@ -266,3 +266,21 @@ def test_churn_selects_least_overlap_among_operational_candidates():
         chosen = next(r for r in rows if r["selected"])
         overlap = lambda r: r["links"] - r["added"]  # noqa: E731
         assert overlap(chosen) == min(overlap(r) for r in rows)
+
+
+# Synthetic networks and per-epoch cost
+
+
+def test_controller_runs_on_a_synthetic_network_and_logs_cost(tmp_path):
+    from doppler2026.synthetic import SyntheticConfig, generate, write
+
+    write(generate(SyntheticConfig(name="tiny", nodes=6, mean_degree=3.0)), tmp_path)
+    result = run(
+        ControllerConfig(
+            network="tiny", topology_dir=str(tmp_path), epochs=2, mode="static"
+        )
+    )
+    first = result.epochs[0]
+    assert first["links"] == 9
+    assert 0 < first["current_mlu"] <= 0.5 + 1e-9  # benign scaled to 50% peak
+    assert first["current_max_stretch"] == pytest.approx(1.0)  # G_0 itself

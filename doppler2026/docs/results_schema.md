@@ -5,13 +5,18 @@ The result schema every experiment writes and the figure scripts read
 (`archive/v0/PLAN.md`) on 2026-11-10; keep it current.
 
 **The result schema.** Every run writes into
-`data/results/doppler2026/<experiment>/<run_id>/`:
+`data/results/doppler2026/<experiment>/<run_id>/` (studies:
+`data/results/doppler2026/studies/<study>/<run_id>/`, plus a `summary.csv`
+of the study's chosen columns):
 
 - `config.json`: the full resolved config, seed, git commit, and package
   versions. This is enough to rerun the experiment exactly.
 - `epochs.csv`: one row per epoch (topology ID, pool sizes after each filter,
   T(G′) of the selected topology, MLU, stretch, benign loss, solver time,
-  transition type).
+  transition type). Since 2026-11-10 also the steady-state cost of the
+  topology in force: `current_mlu`, `current_max_stretch`,
+  `current_mean_stretch` (stretch against G_0, as the operational filter
+  measures it).
 - `candidates.csv`: one row per candidate per epoch (filter outcomes and
   reasons, T(G′), secondary scores).
 - `transferability.csv`: one row per (plan, topology) pair with every damage

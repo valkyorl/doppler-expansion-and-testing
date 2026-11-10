@@ -83,16 +83,17 @@ class SecurityConfig:
     """Which oracle is η's reference (D15); here only labels the attack config."""
     non_response: float = 0.1
     """Silent-router share of the history attacker's traceroute (D26)."""
-    max_stale_damage_ratio: float | None = 1.0
-    """Stale-damage limit (after O7): every history plan must do at most this
-    multiple of the damage it did on its own topology, D(A_i, G') <=
-    ratio x D(A_i, G_i) (§4.2 G1: "produce substantially less damage").
-    ``None`` turns it off."""
-    max_vulnerability_ratio: float | None = 1.0
-    """Vulnerability limit (after O7): the fresh attacker's damage on G' may be
-    at most this multiple of a reference, the attacker's damage on the
-    original topology, so reconfiguring never makes the network more
-    vulnerable. ``None`` turns it off."""
+    max_stale_damage_ratio: float | None = None
+    """Stale-damage limit (O7, discrepancy A6): every history plan must do at
+    most this multiple of the damage it did on its own topology,
+    D(A_i, G') <= ratio x D(A_i, G_i) (§4.2 G1: "produce substantially less
+    damage"). ``None`` (default since the 2026-11-10 baseline; v0 had 1.0)
+    turns it off, leaving Eq. 22's τ condition alone."""
+    max_vulnerability_ratio: float | None = None
+    """Vulnerability limit (O7, discrepancy A6): the fresh attacker's damage
+    on G' may be at most this multiple of a reference, the attacker's damage
+    on the original topology. ``None`` (default since the 2026-11-10
+    baseline; v0 had 1.0) turns it off."""
     oracle_comparisons: bool = False
     """Also compare every plan against both oracles' fresh plans (extra columns).
 

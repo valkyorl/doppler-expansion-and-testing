@@ -19,6 +19,38 @@ entries are not used in code until confirmed.
 | P9 | The candidate MILP is built in `doppler2026/candidates.py`, with flow aggregated per source PoP, instead of reusing `open_doppler._build_edge_flow_milp` | Plan, 2026-11-03 (Phase 3) | The existing builder has one flow per source-destination pair. With every link usable (Eq. 12-14) it has 199k variables on CRL and found no solution in 60 s; per-source flow is an exact reformulation (any per-source flow splits into per-pair flows) and is about N times smaller: every pool of 50 then fills within T_opt on all five networks (3.5-49 s). Consequence: the planned shared-code change (PLAN §5 item 3, per-link capacity in `open_doppler`) is not needed and was not made; `open_doppler` is unchanged |
 | P10 | Transitions take transponder counts from `candidates.transponders`, not from AlpWolf | Plan, 2026-11-03 (Phase 4) | PLAN §4 planned to reuse AlpWolf's circuit model. The transition only needs per-PoP transponder counts, which `candidates.transponders` already gives by the same rule as AlpWolf (one per original link, plus spares, D18), and AlpWolf loads its topology from files. AlpWolf is unchanged and unused |
 
+## Baselines
+
+| # | Baseline | Decided | Settings | Why |
+|---|---|---|---|---|
+| BL1 | **The sparsifying baseline (2026-11-10).** The defaults return to the Phase 4 settings: no spare transponders (D18), no link floor (`keep_link_count` off, O2), and a security filter with Eq. 22's τ condition only (stale-damage and vulnerability limits off, A6). Everything else stays as at v0 (O3 option e, D2 revised, S_max = 3, the O6 churn baseline) | User, 2026-11-10 | `CandidateConfig.spare_transponders = 0`, `spare_fraction = 0.1`, `keep_link_count = False`; `SecurityConfig.max_stale_damage_ratio = None`, `max_vulnerability_ratio = None` | Not permanent. The aim is to see the sparsification clearly, name the decisions that cause it, and study it on a small synthetic network (`studies/`) that makes a later fix easy to recognize. Check: the default ANS Doppler run reproduces `controller/phase4-ANS-doppler` exactly. v0's settings are pinned in `configs/v0/` |
+
+### What drives the sparsification (analysis, 2026-11-10)
+
+From the code and the Phase 4 pools (ANS: 468 of 500 candidates removed
+links only; epoch 0 offered no addition at all). These are the decisions
+that, together, make removals the default move; none is a bug.
+
+1. **No spare transponders (D18).** Every transponder is in use, so an
+   added link needs a removal at both endpoints first: a swap is at least 3
+   changes, a removal 1.
+2. **The MILP minimizes a weighted count of changes (D22, plus I17's MLU
+   term).** A single removal is the cheapest candidate, then two. The
+   paper's Eq. 25 minimizes T(G') and does not favour removals; the
+   tendency comes from the generator (discrepancy A4).
+3. **Every candidate must differ from the current topology (I14),** so each
+   solve makes at least one change, usually a removal.
+4. **No minimum number of links or degree.** Eq. 11 bounds links from above
+   only.
+5. **The operational limits are the only brake** (U_max 0.8, S_max 3,
+   connectivity, D5, D20); in a well-connected network they rarely bind.
+6. **The security filter rewards removing the attacked link,** the simplest
+   way to lower τ.
+7. **The churn baseline (A5) picks the least overlap,** so it prefers two
+   removals over one.
+8. **The local candidate set (D23) narrows which additions exist** (links
+   that move one endpoint of a central or attacked link).
+
 ## Accepted parameter choices
 
 Every accepted choice is a named setting in the experiment config, never a
@@ -45,7 +77,7 @@ later means editing a config value and re-running the affected experiments
 | D9 | "Acceptable subset" for random selection (§4.11) | Candidates whose secondary score is within 10% of the best; uniform seeded choice among them | Named when built in Phase 3 | User, 2026-11-03 |
 | D16 | Fiber graph G_F and feasible links E* (§4.4); no fiber data exists | Each link of the network's original topology is one fiber, as in the existing AlpWolf model. E* = original links plus PoP pairs exactly two fiber hops apart, which is the old Doppler's "max" candidate set (`preprocessing.compute_candidate_links`). An optional km limit (D6). ROADM and spectrum checks stay a pluggable "allowed" hook: no ROADM data exists, and `network_model.py` names ROADMs but never models them | Named when built in Phase 3 | User, 2026-11-03 |
 | D17 | Capacity C_e of a newly created link (Eq. 15–16) | One circuit at the network's median link capacity; existing links keep their own capacity. (The old Doppler gave every circuit a fixed 100 Gb/s, which matches the default capacity of our topologies) | Named when built in Phase 3 | User, 2026-11-03 |
-| D18 | Transponders txp(v) (§4.5, Eq. 11); no placement data exists | **Revised 2026-11-03 (user, after O7):** txp(v) = degree of v in the original topology plus **one spare transponder at every PoP** (`spare_transponders = 1`, `spare_fraction = 1.0`). Without spares almost every reconfiguration made the network more vulnerable (O7). Spares remain an experiment axis (`experiments/envelope.py`). Originally (2026-11-03): no spares, spares placed like the old Doppler's `dynamic_doppler` as an axis. The files in `data/txp/` come from the legacy `rank_transponder_alloc.py` and are not used | `CandidateConfig.spare_transponders`, `CandidateConfig.spare_fraction` | User, 2026-11-03 |
+| D18 | Transponders txp(v) (§4.5, Eq. 11); no placement data exists | **Reverted 2026-11-10 (user, baseline BL1 above): no spares**, txp(v) = degree of v in the original topology (`spare_transponders = 0`). Before that, **revised 2026-11-03 (user, after O7, in effect for v0):** txp(v) = degree of v in the original topology plus **one spare transponder at every PoP** (`spare_transponders = 1`, `spare_fraction = 1.0`). Without spares almost every reconfiguration made the network more vulnerable (O7). Spares remain an experiment axis (`experiments/envelope.py`). Originally (2026-11-03): no spares, spares placed like the old Doppler's `dynamic_doppler` as an axis. The files in `data/txp/` come from the legacy `rank_transponder_alloc.py` and are not used | `CandidateConfig.spare_transponders`, `CandidateConfig.spare_fraction` | User, 2026-11-03 |
 | D19 | Path stretch ℓ(P) (Eq. 17) | ℓ = great-circle km along the path; under ECMP the longest path a demand uses counts; reference P⁰ = the original topology G_0. Hop count as an alternative setting | Named when built in Phase 3 | User, 2026-11-03 |
 | D20 | Connectivity and redundancy (§4.7) | Connected, every demand routable. 2-edge-connectivity is a setting, off by default, always reported | Named when built in Phase 3 | User, 2026-11-03 |
 | D21 | Attack budget R_A inside the security filter (Eq. 21) | 2× median link capacity; budget sweeps as an experiment axis | Named when built in Phase 3 | User, 2026-11-03 |
@@ -246,6 +278,8 @@ the numbers.
   **Revisited 2026-11-03 (user), after O7:** option (c), no net loss of links
   (`CandidateConfig.keep_link_count`, default on), with spare transponders
   compared as a variant.
+  **Reverted 2026-11-10 (user): baseline BL1** (option a again, for the
+  sparsification study).
 - **O3. The security filter does not bind on most networks.** With the
   benign-aware oracle as the reference (D15), the history plan's τ on the
   unchanged topology it was learned on is already below τ_max = 0.5 on
@@ -392,6 +426,9 @@ From the 10-epoch ANS runs (`controller/phase4-ANS-doppler`, `-static`,
   spare transponder (D18 revised). With the no-net-loss constraint and the
   stale-damage limit, the security filter now has three conditions: τ, stale
   damage, and vulnerability.
+  **Reverted 2026-11-10 (user): baseline BL1.** The defaults return to no
+  spares, no link floor, and τ only, to study the sparsification itself; the
+  O7 settings are pinned in `configs/v0/` and remain available.
 
 ## Open issues at version zero
 
@@ -418,6 +455,8 @@ From the 10-epoch ANS runs (`controller/phase4-ANS-doppler`, `-static`,
   allowance (see below) or a larger S_max on the larger networks; a
   vulnerability tolerance above 1.0 (for example 1.1); objectives that
   force larger changes; the envelope experiment to map where Doppler works.
+  Measured under the v0 settings; under baseline BL1 (2026-11-10) the
+  vulnerability limit is off, so the second cause does not apply.
 
 ## Possible paper changes (for the authors)
 

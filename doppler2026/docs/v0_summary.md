@@ -1,6 +1,8 @@
 # Doppler 2026: state at version zero (v0)
 
-Date: 2026-11-04. Written for anyone picking up the experiment after the
+Date: 2026-11-04. **Note (2026-11-10):** the defaults have since changed
+to baseline BL1 (`docs/decisions.md`); this summary describes v0, whose
+settings are pinned in `configs/v0/`. Written for anyone picking up the experiment after the
 initial implementation: what exists, what it shows so far, what goes wrong,
 and what the paper promises that is not built yet. It replaces reading
 the v0 plan and change log end to end; those record how v0 was reached and

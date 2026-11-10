@@ -1,0 +1,17 @@
+{
+  "_comment": "Doppler on CRL with the v0 settings (2026-11-04), pinned here because the defaults changed on 2026-11-10.",
+  "network": "CRL",
+  "epochs": 10,
+  "mode": "doppler",
+  "defender": {
+    "candidates": {
+      "keep_link_count": true,
+      "spare_transponders": 1,
+      "spare_fraction": 1.0
+    },
+    "security": {
+      "max_stale_damage_ratio": 1.0,
+      "max_vulnerability_ratio": 1.0
+    }
+  }
+}

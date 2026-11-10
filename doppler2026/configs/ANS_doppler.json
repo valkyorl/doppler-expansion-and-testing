@@ -1,5 +1,5 @@
 {
-  "_comment": "Doppler on ANS with the accepted defaults (docs/decisions.md); only the run length is set here.",
+  "_comment": "Doppler on ANS with the current defaults (the 2026-11-10 baseline, docs/decisions.md); only the run length is set here.",
   "network": "ANS",
   "epochs": 10,
   "mode": "doppler"

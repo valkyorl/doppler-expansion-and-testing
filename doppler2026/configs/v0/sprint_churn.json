@@ -1,0 +1,17 @@
+{
+  "_comment": "Structural-churn baseline (Eq. 18, decision O6): least overlap among the operationally feasible candidates of a pool generated without security guidance; no security filter. v0 settings (2026-11-04), pinned because the defaults changed on 2026-11-10.",
+  "network": "sprint",
+  "epochs": 10,
+  "mode": "churn",
+  "defender": {
+    "candidates": {
+      "keep_link_count": true,
+      "spare_transponders": 1,
+      "spare_fraction": 1.0
+    },
+    "security": {
+      "max_stale_damage_ratio": 1.0,
+      "max_vulnerability_ratio": 1.0
+    }
+  }
+}

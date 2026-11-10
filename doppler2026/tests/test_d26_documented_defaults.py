@@ -24,9 +24,9 @@ DOCUMENTED = {
     "defender.candidates.u_max": (0.8, "D5"),
     "defender.candidates.candidate_set": ("local", "D23"),
     "defender.candidates.objective": ("random_weights", "D22, O5"),
-    "defender.candidates.keep_link_count": (True, "O2(c), O7, A7"),
-    "defender.candidates.spare_transponders": (1, "D18"),
-    "defender.candidates.spare_fraction": (1.0, "D18"),
+    "defender.candidates.keep_link_count": (False, "baseline 2026-11-10"),
+    "defender.candidates.spare_transponders": (0, "D18, baseline 2026-11-10"),
+    "defender.candidates.spare_fraction": (0.1, "D18, baseline 2026-11-10"),
     "defender.operational.u_max": (0.8, "D5"),
     "defender.operational.s_max": (3.0, "D5, O4"),
     "defender.operational.stretch_metric": ("km", "D19"),
@@ -36,8 +36,8 @@ DOCUMENTED = {
     "defender.security.budget_multiple": (2.0, "D21"),
     "defender.security.n_pairs": (10, "D4"),
     "defender.security.non_response": (0.1, "D26"),
-    "defender.security.max_stale_damage_ratio": (1.0, "O7, A6"),
-    "defender.security.max_vulnerability_ratio": (1.0, "O7, A6"),
+    "defender.security.max_stale_damage_ratio": (None, "A6, baseline 2026-11-10"),
+    "defender.security.max_vulnerability_ratio": (None, "A6, baseline 2026-11-10"),
     "defender.security.oracle_comparisons": (False, "D28"),
     "defender.selection.objective": ("mlu", "D24"),
     "defender.selection.tolerance": (0.10, "D9"),
@@ -68,10 +68,12 @@ def test_attack_defaults_match_docs():
     assert attack.oracle_knowledge == "benign"  # D15
 
 
-CONFIGS = sorted((Path(__file__).parents[1] / "configs").glob("*.json"))
+CONFIGS = sorted((Path(__file__).parents[1] / "configs").rglob("*.json"))
 
 
-@pytest.mark.parametrize("path", CONFIGS, ids=[p.stem for p in CONFIGS])
+@pytest.mark.parametrize(
+    "path", CONFIGS, ids=[f"{p.parent.name}/{p.stem}" for p in CONFIGS]
+)
 def test_shipped_configs_load(path):
     config = load_config(path)
     assert dataclasses.is_dataclass(config)

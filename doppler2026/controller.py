@@ -65,7 +65,7 @@ from .security import (
     security_check,
 )
 from .selection import SelectionConfig, select
-from .topology import load_topology, topology_id
+from .topology import REPO_ROOT, load_topology, topology_id
 from .traffic import benign_demand
 from .transition import evaluate_transition
 
@@ -90,6 +90,10 @@ class ControllerConfig:
     """One multi-epoch run on one network; saved in ``config.json``."""
 
     network: str = "ANS"
+    topology_dir: str | None = None
+    """Folder of ``<network>.gml``, relative to the repository root; ``None``
+    is the Topology Zoo folder ``data/graphs/gml``. Synthetic networks live
+    in ``doppler2026/topologies``."""
     epochs: int = 10
     recon_lag: int = 1
     """L in epochs (D10)."""
@@ -334,9 +338,19 @@ def run(config: ControllerConfig, *, progress=None) -> RunResult:
     """Run ``config.epochs`` epochs from the original topology (see the module docstring)."""
     defender = config.defender
     routing, damage = defender.routing, defender.damage
-    original = load_topology(config.network)
+    if config.topology_dir is None:
+        original = load_topology(config.network)
+    else:
+        original = load_topology(
+            config.network, gml_dir=REPO_ROOT / config.topology_dir
+        )
     benign = benign_demand(
         original, config.benign_utilization, routing, seed=config.benign_seed
+    )
+    # Steady-state cost of the topology in force each epoch (§4.7): MLU and
+    # stretch against G_0, as the operational filter measures them.
+    reference = reference_lengths(
+        original, benign, routing, defender.operational.stretch_metric
     )
     attack = attack_config(original, defender.security)
     txp = cand.transponders(original, defender.candidates)
@@ -381,6 +395,14 @@ def run(config: ControllerConfig, *, progress=None) -> RunResult:
             "links": current.number_of_edges(),
             "plan_target": plan.target,
         }
+        steady = operational_check(
+            current, benign, reference, routing, defender.operational
+        )
+        row.update(
+            current_mlu=steady.mlu,
+            current_max_stretch=steady.max_stretch,
+            current_mean_stretch=steady.mean_stretch,
+        )
         # The attack running now uses the plan learned L epochs ago (D10).
         if epoch >= config.recon_lag:
             stale = plans[epoch - config.recon_lag]

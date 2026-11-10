@@ -1,6 +1,0 @@
-{
-  "_comment": "Doppler on surfNet with the accepted defaults (docs/decisions.md); only the run length is set here.",
-  "network": "surfNet",
-  "epochs": 10,
-  "mode": "doppler"
-}

@@ -88,13 +88,16 @@ def test_transponders_and_capacities_follow_d17_d18():
         "c": 2,
         "d": 1,
     }
-    # Default (D18 revised after O7): one spare at every PoP.
+    # Default (D18, 2026-11-10 baseline): no spares.
     assert cand.transponders(graph, cand.CandidateConfig()) == {
-        "a": 2,
-        "b": 3,
-        "c": 3,
-        "d": 2,
+        "a": 1,
+        "b": 2,
+        "c": 2,
+        "d": 1,
     }
+    # v0: one spare at every PoP.
+    v0 = cand.CandidateConfig(spare_transponders=1, spare_fraction=1.0)
+    assert cand.transponders(graph, v0) == {"a": 2, "b": 3, "c": 3, "d": 2}
     spares = cand.transponders(
         graph, cand.CandidateConfig(spare_transponders=2, spare_fraction=0.5)
     )
@@ -384,7 +387,7 @@ def test_stale_damage_limit_rejects_a_plan_that_got_stronger():
         attack,
         ROUTING,
         DAMAGE,
-        SecurityConfig(tau_max=10.0, max_vulnerability_ratio=None),
+        SecurityConfig(tau_max=10.0, max_stale_damage_ratio=1.0),
         seed=1,
     )
     assert result.damage_ratio > 1.0
@@ -452,6 +455,7 @@ def test_pool_keeps_the_link_count():
         cand.CandidateConfig(
             pool_size=10,
             candidate_set="expanded",
+            keep_link_count=True,
             spare_transponders=1,
             spare_fraction=1.0,
         ),

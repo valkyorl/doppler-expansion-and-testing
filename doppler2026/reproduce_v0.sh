@@ -11,6 +11,11 @@
 # recon, defender and controller are independent and may run in parallel;
 # figures needs all three. Rough times on a 12-core laptop: recon 20 min,
 # defender 10 min, controller 60 min.
+#
+# The controller runs use configs/v0/, which pin the v0 settings that later
+# stopped being defaults (2026-11-10 baseline). recon and defender use the
+# code's defaults; the 2026-11-10 changes do not affect recon, but the
+# defender epoch needs the v0 commit (or tag) to match v0 exactly.
 set -euo pipefail
 
 step="${1:-all}"
@@ -31,7 +36,7 @@ controller() {
     for network in "${networks[@]}"; do
         for mode in static doppler churn; do
             echo "== $network $mode"
-            python -u -m doppler2026.run "doppler2026/configs/${network}_${mode}.json" \
+            python -u -m doppler2026.run "doppler2026/configs/v0/${network}_${mode}.json" \
                 --run-id "$prefix-$network-$mode"
         done
     done

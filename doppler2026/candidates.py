@@ -21,10 +21,11 @@ The model, over a set L of IP links that may be active:
   utilization of every link and is part of the objective.
 - At least one change: the current topology is excluded, and each found
   candidate is excluded before the next solve (no-good cuts).
-- No net loss of links (``keep_link_count``, default on; O2 option c): at
-  least as many active links as the current topology. Without it the
-  change-minimizing objectives only removed links, and each removal made
-  attacks more damaging (O7).
+- No net loss of links (``keep_link_count``; O2 option c): at least as
+  many active links as the current topology. Off by default since the
+  2026-11-10 baseline: without it the change-minimizing objectives mostly
+  remove links (the sparsification under study), and each removal made
+  attacks more damaging (O7). v0 had it on.
 
 Every ordered PoP pair has positive benign demand (gravity model), so any
 feasible solution is connected. The operational filter checks it again.
@@ -59,11 +60,11 @@ dropped; links that may be added come from E* (``feasibility.py``):
   neighbour of u and a neighbour of v.
 - ``"expanded"``: all of E*.
 
-Transponders (D18, revised after O7): txp(v) is v's degree in the original
-topology, plus ``spare_transponders`` at the ``spare_fraction`` most central
-PoPs (like the old Doppler's ``dynamic_doppler`` allocation). Default: one
-spare at every PoP; with none, almost every move made the network more
-vulnerable (O7). New links get the median link
+Transponders (D18): txp(v) is v's degree in the original topology, plus
+``spare_transponders`` at the ``spare_fraction`` most central PoPs (like the
+old Doppler's ``dynamic_doppler`` allocation). Default since the 2026-11-10
+baseline: no spares, so an added link needs a removal at both endpoints
+first (v0 had one spare at every PoP). New links get the median link
 capacity of the original topology (D17).
 
 Solver (D25): HiGHS with a fixed seed, so runs reproduce.
@@ -106,16 +107,16 @@ class CandidateConfig:
     objective: str = "random_weights"
     weight_range: tuple[float, float] = (1.0, 3.0)
     """Range of the per-link change weights (mean 2, as in changes_plus_mlu)."""
-    keep_link_count: bool = True
+    keep_link_count: bool = False
     """No net loss of links: a candidate has at least as many links as the
     current topology, so transponders are re-paired rather than released
-    (O2 option c, chosen after O7)."""
+    (O2 option c; on in v0, off in the 2026-11-10 baseline)."""
     security_weight: float = 4.0
     """Bonus per unit of guidance for ``security_guided`` (twice the mean change weight)."""
-    spare_transponders: int = 1
-    """Spare transponders per chosen PoP (D18, revised after O7)."""
-    spare_fraction: float = 1.0
-    """Share of PoPs, most central first, that get the spares (1.0: all)."""
+    spare_transponders: int = 0
+    """Spare transponders per chosen PoP (D18; v0 had 1)."""
+    spare_fraction: float = 0.1
+    """Share of PoPs, most central first, that get the spares (v0 had 1.0: all)."""
     seed: int = 0
 
     def __post_init__(self) -> None:

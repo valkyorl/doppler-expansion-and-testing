@@ -11,7 +11,12 @@ paper would need to say to match. References in brackets point to
 `decisions.md`.
 
 Status: **in effect** (the code does this now), **in progress** (decided,
-not yet built), or **open** (a promise the results do not yet support).
+not yet built), **available** (built and switchable, off by default), or
+**open** (a promise the results do not yet support).
+
+Since baseline BL1 (2026-11-10, `decisions.md`) the defaults are the
+sparsifying Phase 4 settings, so A6 and A7 are off by default; section C
+reports v0 results, which used them.
 
 ## A. Departures from the paper's specification
 
@@ -76,10 +81,11 @@ not yet built), or **open** (a promise the results do not yet support).
 - **Paper change:** define the baseline as Eq. 18 over the same feasible
   candidates and operational constraints as Doppler.
 
-### A6. The security filter also limits stale damage and vulnerability [O7] — in effect
+### A6. The security filter also limits stale damage and vulnerability [O7] — available (off since BL1)
 
 - **Paper (§4.8, Eq. 22):** a candidate is safe when T(G') <= τ_max.
-- **Code:** two further conditions, both on by default:
+- **Code:** two further conditions, on in v0 and off by default since
+  baseline BL1 (2026-11-10):
   - stale damage: every history plan's damage is at most what that plan did
     on its own topology, D(A_i, G') <= D(A_i, G_i)
     (`max_stale_damage_ratio = 1.0`);
@@ -98,12 +104,13 @@ not yet built), or **open** (a promise the results do not yet support).
   in terms of the ratio only and the paper says Doppler may increase
   vulnerability.
 
-### A7. Candidates may not have fewer links than the current topology [O2, O7] — in effect
+### A7. Candidates may not have fewer links than the current topology [O2, O7] — available (off since BL1)
 
 - **Paper (§4.5, Eq. 11):** transponders bound the active links at each PoP
   from above; nothing keeps the number of links.
 - **Code:** at least as many links as the current topology
   (`keep_link_count`), so transponders are re-paired rather than released.
+  On in v0, off by default since baseline BL1.
 - **Why:** without it, change-minimizing generation only removed links,
   and each removal made the network more vulnerable (O7).
 - **Paper change:** §4.5 should state the constraint, or say that circuits
@@ -151,9 +158,9 @@ not yet built), or **open** (a promise the results do not yet support).
 
 - **Paper (§4.3 input 3, §4.5):** "the number and placement of available
   transponders" is an input.
-- **Code:** each PoP has one transponder per original link plus one spare
-  (default since 2026-11-03, after O7); the number and placement of spares
-  are experiment settings.
+- **Code:** each PoP has one transponder per original link (default since
+  baseline BL1, 2026-11-10; v0 added one spare at every PoP); the number
+  and placement of spares are experiment settings.
 
 ### B6. New-link capacity is assumed [D17] — in effect
 
@@ -179,7 +186,7 @@ not yet built), or **open** (a promise the results do not yet support).
 
 ## C. Promises the current results do not support
 
-Results with the v0 defaults (10 epochs, one seed, runs
+Results with the v0 settings (10 epochs, one seed, runs
 `controller/v0-<network>-<mode>`; table `figures/out/controller_stale_damage.md`).
 "Stale loss" is the mean share of benign traffic lost to the attack running
 in each epoch, which uses the plan learned one epoch earlier (L = 1).

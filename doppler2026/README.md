@@ -5,6 +5,11 @@ This folder implements the experiment for the draft paper
 optical network so that link-flooding attack plans learned on earlier
 topologies stop working, while benign traffic is still carried safely.
 
+**Defaults since 2026-11-10: baseline BL1** (`docs/decisions.md`): the
+sparsifying Phase 4 settings (no spare transponders, no link floor, security
+filter = τ only), for studying the sparsification on synthetic networks
+(`studies/`). v0's settings are pinned in `configs/v0/`.
+
 **Status: version zero (v0), 2026-11-04.** Every part of the paper's design
 (§3 reconnaissance, §4 Doppler with its baselines) is built and runs end to
 end; the paper's §4 evaluation (Phase 5) is not. Start with
@@ -39,7 +44,9 @@ is listed in `docs/code_paper_discrepancies.md`.
 | `transition.py` | E_add / E_remove, transition order, intermediate states | §4.13, Eq. 32–33 |
 | `controller.py` | The multi-epoch control loop, attacker lag, history; static and churn baselines | §4.3, §4.14 |
 | `run.py`, `configs/` | Run the controller from a JSON config | `docs/results_schema.md` |
-| `reproduce_v0.sh` | Rerun every v0 experiment and build every figure | docs/results_schema.md |
+| `reproduce_v0.sh` | Rerun every v0 experiment and build every figure (controller runs from `configs/v0/`) | `docs/results_schema.md` |
+| `synthetic.py`, `topologies/` | Synthetic test networks (random positions, nearest neighbours first) and their GML files | research tool |
+| `studies/` | Small research studies, one script each; index in `studies/README.md` | research tool |
 | `figures/fig_controller_stale_damage.py` | Stale-plan damage per epoch: static, Doppler, churn | §4.2 G1 |
 
 A minimal example, from the repository root:
@@ -153,8 +160,9 @@ python -m doppler2026.run doppler2026/configs/ANS_static.json    # topology neve
 python -m doppler2026.run doppler2026/configs/ANS_churn.json     # structural churn, Eq. 18
 ```
 
-`configs/` has one file per network (sprint, ANS, CRL, bellCanada, surfNet)
-and mode (`doppler`, `static`, `churn`). Compare the modes with
+`configs/ANS_*.json` use the current defaults (baseline BL1). `configs/v0/`
+has one file per network (sprint, ANS, CRL, bellCanada, surfNet) and mode
+(`doppler`, `static`, `churn`) with the v0 settings pinned. Compare the modes with
 `python -m doppler2026.figures.fig_controller_stale_damage --prefix v0`,
 which reads every run named `v0-<network>-<mode>`.
 
@@ -164,6 +172,16 @@ defaults in `docs/decisions.md`. Results go to
 `candidates.csv`, `transferability.csv`, `transitions.jsonl`, and
 `config.json` with the fully resolved config. The same config reproduces the
 same results exactly (timings aside).
+
+### Studies
+
+```bash
+python -m doppler2026.studies.sparsification_synthetic15   # 30 epochs x 3 modes, about 6 minutes
+python -m doppler2026.synthetic --nodes 15 --seed 0          # (re)write a synthetic network
+```
+
+Each study states its question and setup in its docstring; the index is
+`studies/README.md`.
 
 ## Layout
 
