@@ -30,99 +30,17 @@ Output: ``data/results/doppler2026/studies/sparsification_synthetic15/<run_id>/`
 
 from __future__ import annotations
 
-import argparse
-import dataclasses
+from ..synthetic import SyntheticConfig
+from .common import run_study
 
-from ..controller import ControllerConfig, run
-from ..results import new_run_dir, write_config, write_csv, write_jsonl
-from ..synthetic import TOPOLOGY_DIR, SyntheticConfig, ensure
-from ..topology import REPO_ROOT
-
-STUDY = "studies/sparsification_synthetic15"
+STUDY = "sparsification_synthetic15"
 NETWORK = SyntheticConfig()
 EPOCHS = 30
 MODES = ("static", "doppler", "churn")
 
-COLUMNS = {
-    "epoch": "epoch",
-    "links": "links",
-    "transition_added": "added",
-    "transition_removed": "removed",
-    "safe": "safe",
-    "stale_transferability": "stale_tau",
-    "selected_transferability": "selected_T",
-    "current_mlu": "mlu",
-    "current_max_stretch": "max_stretch",
-    "current_mean_stretch": "mean_stretch",
-    "stale_benign_loss": "stale_loss",
-}
-
-
-def summary_row(mode: str, epoch: dict) -> dict:
-    return {"mode": mode, **{new: epoch.get(old) for old, new in COLUMNS.items()}}
-
-
-def _fmt(value) -> str:
-    if value is None or value != value:  # None or NaN
-        return "-"
-    if isinstance(value, float):
-        return f"{value:.3f}"
-    return str(value)
-
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--run-id")
-    args = parser.parse_args()
-
-    ensure(NETWORK)
-    configs = {
-        mode: ControllerConfig(
-            network=NETWORK.name,
-            topology_dir=str(TOPOLOGY_DIR.relative_to(REPO_ROOT)),
-            epochs=EPOCHS,
-            mode=mode,
-        )
-        for mode in MODES
-    }
-    run_dir = new_run_dir(STUDY, args.run_id)
-    write_config(
-        run_dir,
-        {
-            "study": STUDY,
-            "network": dataclasses.asdict(NETWORK),
-            "runs": {m: dataclasses.asdict(c) for m, c in configs.items()},
-        },
-    )
-
-    epochs, candidates, transfers, transitions, summary = [], [], [], [], []
-    for mode, config in configs.items():
-        print(f"== {mode}", flush=True)
-        print("  ".join(f"{c:>12}" for c in COLUMNS.values()), flush=True)
-
-        def progress(row: dict, mode: str = mode) -> None:
-            print(
-                "  ".join(
-                    f"{_fmt(v):>12}"
-                    for v in summary_row(mode, row).values()
-                    if v != mode
-                ),
-                flush=True,
-            )
-
-        result = run(config, progress=progress)
-        epochs += result.epochs
-        candidates += result.candidates
-        transfers += result.transferability
-        transitions += [{"mode": mode, **t} for t in result.transitions]
-        summary += [summary_row(mode, row) for row in result.epochs]
-
-    write_csv(run_dir, "summary.csv", summary)
-    write_csv(run_dir, "epochs.csv", epochs)
-    write_csv(run_dir, "candidates.csv", candidates)
-    write_csv(run_dir, "transferability.csv", transfers)
-    write_jsonl(run_dir, "transitions.jsonl", transitions)
-    print(run_dir)
+    run_study(STUDY, NETWORK, EPOCHS, MODES, __doc__.split("\n")[0])
 
 
 if __name__ == "__main__":

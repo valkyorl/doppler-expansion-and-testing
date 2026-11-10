@@ -51,3 +51,9 @@ def test_written_file_loads_like_a_topology_zoo_network(tmp_path):
 def test_too_few_links_for_the_nearest_rule_is_refused():
     with pytest.raises(ValueError, match="nearest"):
         generate(SyntheticConfig(nodes=10, mean_degree=1.0))
+
+
+def test_four_pop_study_network_links_every_pair():
+    graph = generate(SyntheticConfig(name="synthetic4", nodes=4, mean_degree=3.0))
+    assert graph.number_of_edges() == 6
+    assert all(d == 3 for _, d in graph.degree())

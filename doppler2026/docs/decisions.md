@@ -23,7 +23,7 @@ entries are not used in code until confirmed.
 
 | # | Baseline | Decided | Settings | Why |
 |---|---|---|---|---|
-| BL1 | **The sparsifying baseline (2026-11-10).** The defaults return to the Phase 4 settings: no spare transponders (D18), no link floor (`keep_link_count` off, O2), and a security filter with Eq. 22's τ condition only (stale-damage and vulnerability limits off, A6). Everything else stays as at v0 (O3 option e, D2 revised, S_max = 3, the O6 churn baseline) | User, 2026-11-10 | `CandidateConfig.spare_transponders = 0`, `spare_fraction = 0.1`, `keep_link_count = False`; `SecurityConfig.max_stale_damage_ratio = None`, `max_vulnerability_ratio = None` | Not permanent. The aim is to see the sparsification clearly, name the decisions that cause it, and study it on a small synthetic network (`studies/`) that makes a later fix easy to recognize. Check: the default ANS Doppler run reproduces `controller/phase4-ANS-doppler` exactly. v0's settings are pinned in `configs/v0/` |
+| BL1 | **The sparsifying baseline (2026-11-10).** The defaults return to the Phase 4 settings: no spare transponders (D18), no link floor (`keep_link_count` off, O2), and a security filter with Eq. 22's τ condition only (stale-damage and vulnerability limits off, A6). Everything else stays as at v0 (O3 option e, D2 revised, S_max = 3, the O6 churn baseline) | User, 2026-11-10 | `CandidateConfig.spare_transponders = 0`, `spare_fraction = 0.1`, `keep_link_count = False`; `SecurityConfig.max_stale_damage_ratio = None`, `max_vulnerability_ratio = None` | Not permanent. The aim is to see the sparsification clearly, name the decisions that cause it, and study it on a small synthetic network (`studies/`) that makes a later fix easy to recognize. Check: the default ANS Doppler run reproduces `controller/phase4-ANS-doppler` exactly. v0's settings are in the git tag `v0` (its `configs/v0/`) |
 
 ### What drives the sparsification (analysis, 2026-11-10)
 
@@ -50,6 +50,13 @@ that, together, make removals the default move; none is a bug.
    removals over one.
 8. **The local candidate set (D23) narrows which additions exist** (links
    that move one endpoint of a central or attacked link).
+9. **Connectivity means connected, not bridgeless.** The operational filter
+   accepts a topology where one link failure cuts a PoP off (the
+   `two_edge_connected` column is recorded but not required). Observed on
+   the 4-PoP synthetic network (`studies/sparsification_synthetic4`):
+   Doppler ends on a triangle plus one PoP on a single link, which the
+   attacker then floods. Whether the filter should require it is open for
+   the user; nothing is changed.
 
 ## Accepted parameter choices
 
@@ -428,7 +435,8 @@ From the 10-epoch ANS runs (`controller/phase4-ANS-doppler`, `-static`,
   damage, and vulnerability.
   **Reverted 2026-11-10 (user): baseline BL1.** The defaults return to no
   spares, no link floor, and τ only, to study the sparsification itself; the
-  O7 settings are pinned in `configs/v0/` and remain available.
+  O7 settings remain available as options (the git tag `v0` has the
+  per-network configs that pinned them).
 
 ## Open issues at version zero
 

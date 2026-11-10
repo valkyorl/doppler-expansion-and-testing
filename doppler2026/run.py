@@ -2,8 +2,8 @@
 
 Run from the repository root::
 
-    python -m doppler2026.run doppler2026/configs/ANS_doppler.json
-    python -m doppler2026.run doppler2026/configs/ANS_doppler.json --run-id try1
+    python -m doppler2026.run doppler2026/configs/smoke.json
+    python -m doppler2026.run my_config.json --run-id try1
 
 A config is a JSON object with the fields of ``controller.ControllerConfig``.
 ``defender`` holds the Phase 3 settings by module (``feasibility``,

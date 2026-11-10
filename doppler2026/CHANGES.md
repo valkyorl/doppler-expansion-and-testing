@@ -3,7 +3,57 @@
 Every file created or changed for the Doppler 2026 experiment, inside or
 outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first. Changes up to version zero (2026-11-04) are
-in `archive/v0/CHANGES.md`.
+in the v0 change log, `doppler2026/archive/v0/CHANGES.md` in the git tag `v0`.
+
+## 2026-11-10: Current version only; the 4-PoP study; variants
+
+Working style (user, 2026-11-10): the tree holds the current version; older
+versions live in git history and the `v0` tag/release. Rule added to
+`CLAUDE.md` ("Versions and experiments").
+
+Removed (all in the git tag `v0`):
+
+- `configs/v0/` (15 per-network configs pinning the v0 settings) and
+  `reproduce_v0.sh`.
+- `configs/ANS_{doppler,static,churn}.json`: they only repeated the
+  defaults. `configs/smoke.json` stays; README and `run.py` show a config
+  inline instead.
+- `archive/v0/CHANGES.md` (the v0 change log). `archive/v0/PLAN.md` stays,
+  because code and docs cite it as "PLAN §n".
+- `docs/v0_summary.md`. Its still-current content moved: the Phase 5
+  figures and the defender-model mismatch (I18) are new rows in
+  `docs/gaps.md`; run time, one seed, and the HiGHS quirk are "Practical
+  notes" in `README.md`; the build table, issues, and departures were
+  already in `README.md`, `decisions.md`, and
+  `code_paper_discrepancies.md`. The v0 results table is in the tag.
+- `figures/out/` is no longer tracked; `.gitignore` (outside this folder)
+  gains `doppler2026/figures/out/`. The files stay on disk.
+
+New:
+
+- `variants/` (`README.md`, `__init__.py` with `applied`): ephemeral
+  proposed changes to Doppler, swapped in for one `with` block so a study can
+  compare them with the current version; each is promoted or deleted. No
+  variants yet. Test: `tests/test_d26_variants.py`.
+- `studies/common.py`: the runner shared by the studies (moved out of
+  `sparsification_synthetic15.py`, whose behaviour and output are
+  unchanged; its `config.json` now records the study name without the
+  `studies/` prefix).
+- `studies/sparsification_synthetic4.py` and `topologies/synthetic4.gml`
+  (user's choice: 4 PoPs, all 6 pairs linked, defaults otherwise). First
+  run `studies/sparsification_synthetic4/baseline-2026-11-10` (30 s):
+  Doppler removes 2 links at epoch 0, swaps 2 at epoch 1, then has no safe
+  candidate and stays on a triangle plus one PoP on a single link; the
+  stale attack's damage rises from 5.8% (static) to 47%. Churn drops to 3
+  links at epoch 0. Test: `test_four_pop_study_network_links_every_pair`.
+
+Updated: `CLAUDE.md` (start reading `README.md`; the versions rule),
+`README.md` (status, versions, run examples, studies), `archive/README.md`,
+`__init__.py` and `run.py` docstrings, `studies/README.md` (edit in place,
+`common.py`, variants, index row), `docs/decisions.md` (BL1 and O7 now
+point to the tag; drivers list item 9, an observation: the operational
+filter allows bridges; nothing changed), `docs/gaps.md`,
+`docs/references.md` (dataset row).
 
 ## 2026-11-10: Synthetic network and the sparsification study
 

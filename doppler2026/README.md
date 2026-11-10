@@ -5,17 +5,21 @@ This folder implements the experiment for the draft paper
 optical network so that link-flooding attack plans learned on earlier
 topologies stop working, while benign traffic is still carried safely.
 
+**Status.** Every part of the paper's design (§3 reconnaissance, §4 Doppler
+with its baselines) is built and runs end to end; the paper's §4 evaluation
+(Phase 5) is not (`docs/gaps.md`). Where the implementation departs from the
+draft paper is listed in `docs/code_paper_discrepancies.md`; open issues
+(O1-O8) and every decision are in `docs/decisions.md`.
+
 **Defaults since 2026-11-10: baseline BL1** (`docs/decisions.md`): the
 sparsifying Phase 4 settings (no spare transponders, no link floor, security
 filter = τ only), for studying the sparsification on synthetic networks
-(`studies/`). v0's settings are pinned in `configs/v0/`.
+(`studies/`).
 
-**Status: version zero (v0), 2026-11-04.** Every part of the paper's design
-(§3 reconnaissance, §4 Doppler with its baselines) is built and runs end to
-end; the paper's §4 evaluation (Phase 5) is not. Start with
-`docs/v0_summary.md`: what exists, what the results show so far, the issues,
-and what is not built. Where the implementation departs from the draft paper
-is listed in `docs/code_paper_discrepancies.md`.
+**Versions.** This folder holds the current version only. Version zero
+(2026-11-04: the first end-to-end implementation, its configs, its results
+summary, and its reproduce script) is the git tag `v0`. Proposed changes to
+compare against the current Doppler go in `variants/` and are ephemeral.
 
 ## What exists so far
 
@@ -44,9 +48,9 @@ is listed in `docs/code_paper_discrepancies.md`.
 | `transition.py` | E_add / E_remove, transition order, intermediate states | §4.13, Eq. 32–33 |
 | `controller.py` | The multi-epoch control loop, attacker lag, history; static and churn baselines | §4.3, §4.14 |
 | `run.py`, `configs/` | Run the controller from a JSON config | `docs/results_schema.md` |
-| `reproduce_v0.sh` | Rerun every v0 experiment and build every figure (controller runs from `configs/v0/`) | `docs/results_schema.md` |
 | `synthetic.py`, `topologies/` | Synthetic test networks (random positions, nearest neighbours first) and their GML files | research tool |
 | `studies/` | Small research studies, one script each; index in `studies/README.md` | research tool |
+| `variants/` | Ephemeral proposed changes to Doppler, compared against the current version by a study; see `variants/README.md` | research tool |
 | `figures/fig_controller_stale_damage.py` | Stale-plan damage per epoch: static, Doppler, churn | §4.2 G1 |
 
 A minimal example, from the repository root:
@@ -80,18 +84,17 @@ print(result.ratio, result.other_ratio)   # about 0.167 (vs D15), 1.0 (vs itself
 
 | File | What it tells you |
 |---|---|
-| `docs/v0_summary.md` | **Start here:** the state at version zero, issues, and what is not built |
 | `CHANGES.md` | Every file created or changed since v0, and why |
 | `docs/gaps.md` | Parts of the paper that cannot be built yet, with their plug-in points |
 | `docs/results_schema.md` | The result files every experiment writes, and the figures |
-| `archive/v0/` | The development plan and change log that led to v0. Historical: read only when the history is needed. "PLAN §n" in code and docs means `archive/v0/PLAN.md` |
+| `archive/v0/` | The development plan that led to v0. Historical: read only when the history is needed. "PLAN §n" in code and docs means `archive/v0/PLAN.md` |
 | `docs/paper_map.md` | Which module implements which paper section and equation |
 | `docs/decisions.md` | Choices the paper leaves open, and what was decided |
 | `docs/code_paper_discrepancies.md` | Where the implementation departs from what the draft spells out, and promises the results do not yet support |
 | `docs/references.md` | Libraries, methods, and datasets used, with citations |
 | `docs/diagrams/` | Control loop, module map, and data-flow diagrams |
 | `docs/Doppler_security_26.pdf` | The paper draft (kept out of git; never commit or publish it) |
-| `figures/out/` | Generated figures and tables. The PDFs are deliberately not in git (the repository ignores `*.pdf`); regenerate them from a run with the scripts in `figures/` |
+| `figures/out/` | Generated figures and tables, not tracked in git; regenerate them from a run with the scripts in `figures/` |
 
 ## Running
 
@@ -112,13 +115,18 @@ pip install --no-deps GraphRicciCurvature==0.6.1
 
 `pip check` will then report the SciPy pin as unmet; that is expected.
 
-### Everything at once (v0)
+### Practical notes
 
-```bash
-bash doppler2026/reproduce_v0.sh            # all steps, about 1.5 hours
-bash doppler2026/reproduce_v0.sh figures    # one step: recon, defender, controller, figures
-bash doppler2026/reproduce_v0.sh all v1     # rerun under another run name
-```
+- **Run time.** A Doppler epoch takes seconds on the 4-PoP synthetic
+  network, 3-30 s on sprint and ANS, and 75-150 s on bellCanada and
+  surfNet, mostly in the security filter (a re-measured attacker plus damage
+  simulations per candidate).
+- **One seed.** Every run so far uses one seed: exactly reproducible, but
+  with no measure of spread yet.
+- **Solver quirk.** HiGHS refuses to run when its thread count is set after
+  another HiGHS model has run in the same process; the code does not set
+  it, and stops with an error if a solve fails instead of returning a short
+  pool.
 
 ### Reconnaissance experiment (Phase 2)
 
@@ -155,16 +163,15 @@ python -m doppler2026.experiments.defender_epoch --networks sprint ANS CRL bellC
 ### Multi-epoch Doppler and baselines (Phase 4)
 
 ```bash
-python -m doppler2026.run doppler2026/configs/ANS_doppler.json   # Doppler
-python -m doppler2026.run doppler2026/configs/ANS_static.json    # topology never changes
-python -m doppler2026.run doppler2026/configs/ANS_churn.json     # structural churn, Eq. 18
+python -m doppler2026.run doppler2026/configs/smoke.json   # 3 quick epochs on sprint
+python -m doppler2026.run my_config.json --run-id ANS-doppler
 ```
 
-`configs/ANS_*.json` use the current defaults (baseline BL1). `configs/v0/`
-has one file per network (sprint, ANS, CRL, bellCanada, surfNet) and mode
-(`doppler`, `static`, `churn`) with the v0 settings pinned. Compare the modes with
-`python -m doppler2026.figures.fig_controller_stale_damage --prefix v0`,
-which reads every run named `v0-<network>-<mode>`.
+For example, `{"network": "ANS", "epochs": 10, "mode": "churn"}` runs the
+structural-churn baseline (Eq. 18); `"mode"` is `doppler`, `static`
+(topology never changes), or `churn`. Compare the modes of runs named
+`<prefix>-<network>-<mode>` with
+`python -m doppler2026.figures.fig_controller_stale_damage --prefix <prefix>`.
 
 A config lists only the settings it changes; everything else keeps the
 defaults in `docs/decisions.md`. Results go to
@@ -176,6 +183,7 @@ same results exactly (timings aside).
 ### Studies
 
 ```bash
+python -m doppler2026.studies.sparsification_synthetic4    # 30 epochs x 3 modes, under a minute
 python -m doppler2026.studies.sparsification_synthetic15   # 30 epochs x 3 modes, about 6 minutes
 python -m doppler2026.synthetic --nodes 15 --seed 0          # (re)write a synthetic network
 ```

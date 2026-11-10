@@ -15,11 +15,17 @@ Conventions:
 - **Results** go to `data/results/doppler2026/studies/<study>/<run_id>/`,
   with `config.json` (every setting, git commit, package versions) and the
   usual CSV files (`docs/results_schema.md`).
-- **Changing a study's setup** means a new script or a new run id, not
-  editing a script whose results are already reported, so old runs stay
-  explainable.
+- **Shared code** (running the controller in several modes, printing,
+  writing results) is in `studies/common.py`; a study script is mostly its
+  docstring and settings.
+- **Changing a study's setup**: edit the script in place and use a new run
+  id. Each run's `config.json` records every setting and the git commit, so
+  older results stay explainable from git history.
+- **Comparing a proposed change to Doppler** against the current version:
+  put the change in `variants/` and switch it on from the study.
 - **Add a row below** for each study.
 
 | Study | Question | Added | Runs |
 |---|---|---|---|
+| `sparsification_synthetic4` | Does the baseline Doppler make a fully linked 4-PoP network sparser, and what happens to τ, MLU, stretch, and the stale attack's damage? | 2026-11-10 | `baseline-2026-11-10` |
 | `sparsification_synthetic15` | Does the baseline Doppler make a dense 15-PoP synthetic network sparser, and how do τ, MLU, and stretch change as it does? | 2026-11-10 | `baseline-2026-11-10` |

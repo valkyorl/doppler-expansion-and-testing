@@ -78,3 +78,6 @@ opencode.json
 # Gurobi licence files (WLS licences contain an access secret); never commit
 gurobi.lic
 *.lic
+
+# Doppler 2026 generated figures: regenerate with doppler2026/figures/ scripts
+doppler2026/figures/out/

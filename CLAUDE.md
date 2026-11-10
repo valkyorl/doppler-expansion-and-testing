@@ -8,10 +8,10 @@ Edit them freely; they are read at the start of each conversation.
 - The active work is a new Doppler experiment that implements the draft paper
   *Doppler-security-26* (Aug 2026). All files specific to this experiment and
   paper live in `doppler2026/`.
-- Read `doppler2026/docs/v0_summary.md` before starting work on it, and
+- Read `doppler2026/README.md` before starting work on it, and
   `doppler2026/CHANGES.md` to see what has changed since version zero.
 - `doppler2026/archive/` holds superseded documents (the v0 development
-  plan and change log). Do not read or search it by default: exclude it from
+  plan). Do not read or search it by default: exclude it from
   searches, and open it only when a task needs history (why something was
   decided, what an earlier run used). Say so when you do. "PLAN §n" in code
   and docs refers to `doppler2026/archive/v0/PLAN.md`.
@@ -41,6 +41,26 @@ how results are judged).
   assumption, a new departure from the paper, or a change to the
   methodology, and what each one is, so the user can record or reject it.
   When reporting finished work, list any that resulted.
+
+## Versions and experiments
+
+The working tree holds the current version only. Earlier versions live in
+git history, tags (e.g. `v0`), and GitHub releases, which the user makes.
+
+- Do not keep copies of old code, old configs, or reproduce scripts for
+  earlier versions. A config that only repeats the defaults is not kept.
+- Keep: the documentation of differences from the paper, assumptions, and
+  decisions; the current, runnable Doppler; the files outside
+  `doppler2026/`; and `doppler2026/studies/`.
+- Archive (`doppler2026/archive/`) only what is still needed to understand
+  the current code, such as a plan that docs cite.
+- A proposed change to Doppler that should be compared with the current
+  version goes in `doppler2026/variants/` (see its README). Variants are
+  ephemeral: each is either promoted into the real modules or deleted. The
+  user decides case by case whether to keep one.
+- Study scripts are edited in place; each run's `config.json` records the
+  git commit, so old results stay traceable.
+- Generated figures (`doppler2026/figures/out/`) are not tracked in git.
 
 ## Rules for changes
 
