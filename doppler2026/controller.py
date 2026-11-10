@@ -4,13 +4,17 @@ One epoch t, with the network in topology G_t (PLAN §2):
 
 1. Attacker: learns plan A_t on G_t by traceroute (D7, D26; measurement
    seed t). The attack that runs during epoch t uses the plan learned L
-   epochs earlier, A_{t-L} (recon lag, D10; default L = 1), so the logged
+   epochs earlier, A_{t-L} (recon lag, D10; default L = 2), so the logged
    stale-plan damage is D(A_{t-L}, G_t) and its transferability
    τ(A_{t-L}, G_t) = D(A_{t-L}, G_t) / D(A_t, G_t) (Eq. 1: A_t is the plan
    built "with current knowledge of" G_t). Nothing is logged while t < L.
-2. History: the last h states including the current one, with the plans
-   learned on them (D30). The defender's model of the attacker is the same
-   attacker (I18).
+2. History: the h states before the current one, G_{t-1} ... G_{t-h}, with
+   the plans learned on them (Eq. 19-20, D30). This relies on the assumption
+   L >= 2: the topology chosen now, G_{t+1}, is attacked with A_{t+1-L},
+   which is then in the history. With L = 1 it would be A_t, learned on G_t,
+   which Eq. 19 leaves out, so Doppler runs refuse L < 2. At epoch 0 the
+   history is empty and Doppler stays on G_0 (D32). The defender's model of
+   the attacker is the same attacker (I18).
 3. Defender (``mode = "doppler"``): feasible links, candidate pool around G_t,
    operational filter, security filter T(G') <= τ_max, and random selection
    from the acceptable subset (§4.4-4.11; ``defender_step``). Without a safe
@@ -95,8 +99,9 @@ class ControllerConfig:
     is the Topology Zoo folder ``data/graphs/gml``. Synthetic networks live
     in ``doppler2026/topologies``."""
     epochs: int = 10
-    recon_lag: int = 1
-    """L in epochs (D10)."""
+    recon_lag: int = 2
+    """L in epochs (D10). Doppler needs L >= 2, the assumption behind the
+    Eq. 19 history (D30); static and churn accept any L >= 0."""
     mode: str = "doppler"
     seed: int = 0
     benign_utilization: float = 0.5
@@ -110,6 +115,12 @@ class ControllerConfig:
             raise ValueError(f"mode must be one of {MODES}")
         if self.epochs < 1 or self.recon_lag < 0:
             raise ValueError("epochs must be >= 1 and recon_lag >= 0")
+        if self.mode == "doppler" and self.recon_lag < 2:
+            raise ValueError(
+                "Doppler assumes recon_lag >= 2 (D30): with L = 1 the next "
+                "attack uses the plan learned on G_t, which the Eq. 19 history "
+                "G_{t-1} ... G_{t-h} does not contain"
+            )
 
 
 @dataclass
@@ -377,15 +388,16 @@ def run(config: ControllerConfig, *, progress=None) -> RunResult:
     for epoch in range(config.epochs):
         started = time.perf_counter()
         current_id = topology_id(current)
-        # 1. The attacker learns a plan on the running topology.
+        # 1. The attacker learns a plan on the running topology. Its history
+        # entry joins the defender's history only after this epoch's
+        # decision: Eq. 19 holds G_{t-1} ... G_{t-h} (D30).
         plan = history_plan(current, attack, routing, defender.security, seed=epoch)
         plans.append(plan)
-        history.append(history_entry(current, plan, benign, routing, damage))
+        entry = history_entry(current, plan, benign, routing, damage)
         if epoch == 0:
             # The attacker's damage on the original topology: the reference
             # of the optional vulnerability limit.
-            reference_damage = history[-1].own_damage
-        history = history[-defender.security.history_length :]
+            reference_damage = entry.own_damage
 
         row = {
             "network": config.network,
@@ -394,6 +406,7 @@ def run(config: ControllerConfig, *, progress=None) -> RunResult:
             "current_topology_id": current_id,
             "links": current.number_of_edges(),
             "plan_target": plan.target,
+            "history_states": len(history),
         }
         steady = operational_check(
             current, benign, reference, routing, defender.operational
@@ -442,7 +455,9 @@ def run(config: ControllerConfig, *, progress=None) -> RunResult:
         # 2-6. The defender chooses the next topology.
         target = current
         step = None
-        if config.mode != "static":
+        # With an empty history (epoch 0) Doppler has nothing to check
+        # candidates against and stays on G_0 (D32).
+        if config.mode != "static" and (history or config.mode != "doppler"):
             step = defender_step(
                 config.network,
                 original,
@@ -468,7 +483,7 @@ def run(config: ControllerConfig, *, progress=None) -> RunResult:
                 target = cand.build_topology(
                     original, step.selected.links, step.capacities
                 )
-        row["no_safe_topology"] = config.mode != "static" and target is current
+        row["no_safe_topology"] = step is not None and target is current
 
         # 7. The transition to G_{t+1} (D31).
         capacities = cand.link_capacities(original, _links(current) | _links(target))
@@ -505,5 +520,6 @@ def run(config: ControllerConfig, *, progress=None) -> RunResult:
         result.epochs.append(row)
         if progress:
             progress(row)
+        history = [*history, entry][-defender.security.history_length :]
         current = target
     return result

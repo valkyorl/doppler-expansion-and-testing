@@ -50,7 +50,7 @@ Where each part of *Doppler-security-26* is implemented. Status is one of
 | §4.7, Eq. 17 | Path stretch S_max | `filters.operational_check` (km or hops; longest ECMP path; against G_0; D19) | implemented (see open issue O4) |
 | §4.7 | Connectivity and redundancy | `filters.operational_check` (connected and routable; 2-edge-connectivity optional, D20) | implemented |
 | §4.8, Eq. 18 | Structural-churn baseline | `ControllerConfig.mode = "churn"`: Eq. 18 as the selection rule over the operationally feasible candidates of an unguided pool, no security filter (O6, discrepancy A5); the `min_overlap` MILP objective in `candidates.py` is kept but not used by default; compared by `figures/fig_controller_stale_damage.py` | implemented (departs from Eq. 18 as an optimization); Phase 5 experiment planned |
-| §4.8, Eq. 19–21 | History and T(G′) | `security.HistoryEntry`, `security.history_plan` (D7, D26), `security.security_check`; history of the last h states including G_t in `controller.run` (D30) | implemented |
+| §4.8, Eq. 19–21 | History and T(G′) | `security.HistoryEntry`, `security.history_plan` (D7, D26), `security.security_check`; history G_{t-1} ... G_{t-h} (Eq. 19) in `controller.run`, assuming recon lag L >= 2; empty at epoch 0, when Doppler stays on G_0 (D30, D32) | implemented |
 | §4.8, Eq. 22 | Security filter T(G′) ≤ τ_max | `security.security_check`: τ against the same attacker re-measuring G′ (O3 option e); optional stale-damage and vulnerability limits (O7, discrepancy A6), off by default since baseline BL1 | implemented |
 | §4.9, Eq. 23–24 | Safe set and pairwise τ | `security.pairwise_transferability`; safe set in `experiments/defender_epoch.py` | implemented |
 | §4.10 | Local and expanded candidate sets | `candidates.variable_links` (local = old "conservative" + history targets, liberal, expanded; D23) | implemented |
@@ -58,7 +58,7 @@ Where each part of *Doppler-security-26* is implemented. Status is one of
 | §4.12 | Optimization time budget T_opt | `CandidateConfig.time_limit` (D25) | implemented |
 | §4.13, Eq. 32–33 | E_add / E_remove, make-before-break | `transition.order_changes` (D31), `transition.evaluate_transition` (flow-level intermediate states) | implemented |
 | §4.13 | Packet-level convergence and loss | testbed replay of `transitions.jsonl` | gap |
-| §4.14 | Reconfiguration interval T_R vs recon lag | `ControllerConfig.recon_lag` (L in epochs, D10); stale-plan damage D(A_{t-L}, G_t) per epoch | implemented (epochs are abstract; real timings are Phase 5) |
+| §4.14 | Reconfiguration interval T_R vs recon lag | `ControllerConfig.recon_lag` (L in epochs, default 2, at least 2 for Doppler; D10); stale-plan damage D(A_{t-L}, G_t) per epoch | implemented (epochs are abstract; real timings are Phase 5) |
 
 ## Research tools (not in the paper)
 

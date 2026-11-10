@@ -16,7 +16,9 @@ of the study's chosen columns):
   transition type). Since 2026-11-10 also the steady-state cost of the
   topology in force: `current_mlu`, `current_max_stretch`,
   `current_mean_stretch` (stretch against G_0, as the operational filter
-  measures it).
+  measures it), and `history_states`, the number of states in the
+  defender's history that epoch (0 at epoch 0, when Doppler stays on G_0,
+  D32).
 - `candidates.csv`: one row per candidate per epoch (filter outcomes and
   reasons, T(G′), secondary scores).
 - `transferability.csv`: one row per (plan, topology) pair with every damage

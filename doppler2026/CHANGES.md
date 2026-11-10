@@ -5,6 +5,39 @@ outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first. Changes up to version zero (2026-11-04) are
 in the v0 change log, `doppler2026/archive/v0/CHANGES.md` in the git tag `v0`.
 
+## 2026-11-10: History as Eq. 19, recon lag at least 2 (D10, D30, D32)
+
+Decided by the user. **Changes existing behaviour:** results of every
+Doppler and churn run differ from before.
+
+- `controller.py`: the defender's history is now G_{t-1} ... G_{t-h} as in
+  Eq. 19 (it was G_t ... G_{t-h+1}, former discrepancy A2). The new history
+  entry is added after the epoch's decision. `recon_lag` defaults to 2 (was
+  1), the assumption that makes Eq. 19 sufficient: the topology chosen at
+  epoch t is attacked with the plan from G_{t+1-L}, which is then in the
+  history. Doppler runs refuse L < 2 with an explanation; static and churn
+  accept any L >= 0 (the L = 0 reference stays). At epoch 0 the history is
+  empty and Doppler stays on G_0 (new D32); churn still moves. New
+  `epochs.csv` column `history_states`; `no_safe_topology` is now false
+  when the defender did not run.
+- Churn uses the same history, so its candidate pool's attacked-link targets
+  (D23) now lag one epoch too.
+- `experiments/defender_epoch.py`: behaviour unchanged (still checks
+  against the plan on G_0); its docstring now says so.
+- Docs: `decisions.md` (D10, D30 revised; D32 new; BL1's reproduction check
+  dated), `code_paper_discrepancies.md` (A2 withdrawn as a departure: now
+  the lag assumption; sections B and C untouched), `paper_map.md`,
+  `results_schema.md`, `studies/README.md`.
+- Tests: the lag test rewritten for L = 2; new tests for the Eq. 19 history
+  and epoch 0, and for refusing L < 2 in Doppler mode; the documented
+  default of `recon_lag` is 2.
+- Rerun: `studies/sparsification_synthetic4/lag2-2026-11-10`. Doppler
+  behaves as before, one epoch later (moves at epochs 1 and 2, ends on the
+  same 4-link topology, stale damage 47% from epoch 5). Churn alternates
+  between two 3-link topologies; with L = 2 the stale plan was learned on
+  the topology now running, so its τ is 1.0 and damage alternates between
+  54.7% and 11.7%.
+
 ## 2026-11-10: Current version only; the 4-PoP study; variants
 
 Working style (user, 2026-11-10): the tree holds the current version; older

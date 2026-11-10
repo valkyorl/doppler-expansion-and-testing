@@ -35,13 +35,19 @@ reports v0 results, which used them.
   "upper bound". Even the benign-aware oracle is not a proven upper bound
   (η > 1 in 0.4-0.6% of plans).
 
-### A2. The history includes the current topology [D30] — in effect
+### A2. (Withdrawn 2026-11-10: now an assumption, D30) — no longer a departure
 
-- **Paper (Eq. 19-20):** the history is G_{t-1}, ..., G_{t-h} and their plans.
-- **Code:** the last h states including the current one, G_t ... G_{t-h+1}.
-- **Why:** the attacker most likely holds a plan for the running topology, so
-  a candidate must invalidate it too.
-- **Paper change:** Eq. 19 indexed from G_t.
+The code now follows Eq. 19: the history is G_{t-1} ... G_{t-h}. This rests
+on an **assumption**, recorded as D30 and D10: the attacker's recon lag L
+is at least 2 epochs, so the topology chosen at epoch t, G_{t+1}, is
+attacked with a plan learned on a state already in the history. If the lag
+were 1, the attacker would be attacking G_{t+1} with the plan learned on
+G_t, and the history would need to include G_t (what the code did from
+2026-11-03 to 2026-11-10). Doppler runs refuse L < 2. At epoch 0 the history
+is empty and Doppler stays on G_0 (D32).
+
+- **Paper change:** state the lag assumption next to Eq. 19, or index the
+  history from G_t if a one-epoch lag is in scope.
 
 ### A3. K counts candidates before the security filter [PLAN §2] — in effect
 

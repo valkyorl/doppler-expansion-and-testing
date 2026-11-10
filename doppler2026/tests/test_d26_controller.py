@@ -127,31 +127,47 @@ def test_same_config_reproduces_exactly():
 
 @needs_sprint
 def test_epoch_rows_log_attack_pool_and_transition():
-    result = run(ControllerConfig(network="sprint", epochs=3, defender=SMALL))
-    first, *later = result.epochs
-    assert "stale_transferability" not in first  # t < L: no attack yet (D10)
-    for row in later:
+    result = run(ControllerConfig(network="sprint", epochs=4, defender=SMALL))
+    rows = result.epochs
+    for row in rows[:2]:
+        assert "stale_transferability" not in row  # t < L = 2: no attack yet (D10)
+    for row in rows[2:]:
         assert {
             "stale_transferability",
             "stale_benign_loss",
             "attack_plan_learned_at",
         } <= row.keys()
-        assert row["attack_plan_learned_at"] == row["epoch"] - 1
-    for row in result.epochs:
-        assert {
-            "candidates",
-            "safe",
-            "solver_time",
-            "transition",
-            "links",
-        } <= row.keys()
-    assert len(result.transitions) == 3
-    # The stale attack in epoch 1 is the plan from G_0 on the topology selected
-    # in epoch 0, so its τ is that topology's T(G') against that plan.
-    if first["selected_transferability"] is not None:
-        assert later[0]["stale_transferability"] == pytest.approx(
-            first["selected_transferability"]
+        assert row["attack_plan_learned_at"] == row["epoch"] - 2
+    for row in rows[1:]:
+        assert {"candidates", "safe", "solver_time"} <= row.keys()
+    for row in rows:
+        assert {"transition", "links", "history_states"} <= row.keys()
+    assert len(result.transitions) == 4
+    # The stale attack in epoch 2 is the plan from G_0 on the topology selected
+    # in epoch 1, whose history was {G_0}, so its τ is that topology's T(G').
+    if rows[1]["selected_transferability"] is not None:
+        assert rows[2]["stale_transferability"] == pytest.approx(
+            rows[1]["selected_transferability"]
         )
+
+
+@needs_sprint
+def test_history_is_eq19_and_doppler_stays_on_g0_at_epoch_0():
+    result = run(ControllerConfig(network="sprint", epochs=3, defender=SMALL))
+    # G_{t-1} ... G_{t-h}: the current state is never in the history (D30).
+    assert [r["history_states"] for r in result.epochs] == [0, 1, 2]
+    first = result.epochs[0]
+    assert first["transition"] == "none" and "candidates" not in first  # D32
+    assert first["no_safe_topology"] is False
+    assert not [c for c in result.candidates if c["epoch"] == 0]
+
+
+def test_doppler_refuses_a_lag_below_two():
+    for lag in (0, 1):
+        with pytest.raises(ValueError, match="recon_lag >= 2"):
+            ControllerConfig(network="sprint", mode="doppler", recon_lag=lag)
+    for mode in ("static", "churn"):
+        ControllerConfig(network="sprint", mode=mode, recon_lag=0)
 
 
 @needs_sprint

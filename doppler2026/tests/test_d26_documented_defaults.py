@@ -16,7 +16,7 @@ from doppler2026.model import AttackConfig
 from doppler2026.run import load_config
 
 DOCUMENTED = {
-    "recon_lag": (1, "D10"),
+    "recon_lag": (2, "D10"),
     "defender.feasibility.max_fiber_hops": (2, "D16"),
     "defender.feasibility.max_km": (None, "D6"),
     "defender.candidates.pool_size": (50, "D3"),

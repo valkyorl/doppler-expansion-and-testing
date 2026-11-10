@@ -27,5 +27,5 @@ Conventions:
 
 | Study | Question | Added | Runs |
 |---|---|---|---|
-| `sparsification_synthetic4` | Does the baseline Doppler make a fully linked 4-PoP network sparser, and what happens to τ, MLU, stretch, and the stale attack's damage? | 2026-11-10 | `baseline-2026-11-10` |
-| `sparsification_synthetic15` | Does the baseline Doppler make a dense 15-PoP synthetic network sparser, and how do τ, MLU, and stretch change as it does? | 2026-11-10 | `baseline-2026-11-10` |
+| `sparsification_synthetic4` | Does the baseline Doppler make a fully linked 4-PoP network sparser, and what happens to τ, MLU, stretch, and the stale attack's damage? | 2026-11-10 | `baseline-2026-11-10` (L = 1, history with G_t); `lag2-2026-11-10` (L = 2, Eq. 19 history) |
+| `sparsification_synthetic15` | Does the baseline Doppler make a dense 15-PoP synthetic network sparser, and how do τ, MLU, and stretch change as it does? | 2026-11-10 | `baseline-2026-11-10` (L = 1, history with G_t) |

@@ -3,7 +3,11 @@
 For each network, starting from its original topology G_0:
 
 1. The attacker measures G_0 by traceroute and learns plan A_0 (D7, D26).
-   The history is [(G_0, A_0)].
+   The history is [(G_0, A_0)]: candidates are checked against the plan
+   for the running topology. This one-epoch check predates D30's switch to
+   the Eq. 19 history (2026-11-10), under which epoch 0 has no history and
+   the controller stays on G_0 (D32); it is kept as it was so its runs stay
+   comparable.
 2. Feasible links E* from the fiber graph (§4.4, D16).
 3. The MILP enumerates up to K candidates around G_0 (§4.10-4.11, D22, D23).
 4. Operational filter with the network's routing (§4.6-4.7, D5, D19, D20).
