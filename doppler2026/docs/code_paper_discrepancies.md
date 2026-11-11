@@ -10,6 +10,12 @@ Each entry gives what the paper says, what the code does, why, and what the
 paper would need to say to match. References in brackets point to
 `decisions.md`.
 
+In the **Paper** lines, only text in quotation marks is quoted from the
+draft, verbatim except that equations are written in plain text (e.g.
+`T(G') <= τ_max` for T(G′) ≤ τ_max) and "..." marks a cut. Everything else
+is a paraphrase. Where a line adds an observation about what the paper does
+not say, it is labelled as ours. (Checked against the draft, 2026-11-10.)
+
 Status: **in effect** (the code does this now), **in progress** (decided,
 not yet built), **available** (built and switchable, off by default), or
 **open** (a promise the results do not yet support).
@@ -97,7 +103,13 @@ is empty and Doppler stays on G_0 (D32).
 
 ### A5. The structural-churn baseline selects from Doppler's pool [O6] — in effect
 
-- **Paper (§4.8, Eq. 18):** structural churn chooses "min |E_t ∩ E'|".
+- **Paper (§4.8, Eq. 18):** Eq. 18 appears only as a contrast to Doppler's
+  security objective: "one could choose min |E_t ∩ E'|. This produces
+  topological churn, but it does not directly capture whether an
+  attacker's information has become stale." The paper does not define a
+  structural-churn baseline, the constraints it would be under, or the
+  comparison with Doppler (§5 is empty in the draft). Our observation: the
+  baseline is our methodology, built on this contrast.
 - **Code:** Eq. 18 is applied as the selection rule over the
   operationally feasible candidates of a pool generated without security
   guidance, with no security filter.
@@ -133,7 +145,8 @@ is empty and Doppler stays on G_0 (D32).
 ### A7. Candidates may not have fewer links than the current topology [O2, O7] — available (off since BL1)
 
 - **Paper (§4.5, Eq. 11):** transponders bound the active links at each PoP
-  from above; nothing keeps the number of links.
+  from above (sum of x_e over the links at v <= txp(v)). Our observation:
+  the paper has no constraint that keeps the number of links.
 - **Code:** at least as many links as the current topology
   (`keep_link_count`), so transponders are re-paired rather than released.
   On in v0, off by default since baseline BL1.
@@ -190,8 +203,12 @@ is empty and Doppler stays on G_0 (D32).
 
 ### B6. New-link capacity is assumed [D17] — in effect
 
-- **Paper (Eq. 15, §4.5):** C_e is the link's realizable capacity, derived
-  from the circuits assigned to it.
+- **Paper (Eq. 15, §4.5):** "C_e denotes the realizable capacity of edge
+  e". Deriving capacity from circuits is mentioned only for an extension of
+  Eq. 11: "when multiple wavelengths are aggregated into a single IP link or
+  when heterogeneous transponder rates are available ... Doppler ... derives
+  IP-link capacity from the circuits assigned to the link." The basic model
+  does not say how C_e is set for a new link.
 - **Code:** a new link gets the network's median link capacity.
 
 ### B7. Transitions are evaluated at flow level only [I20; docs/gaps.md] — in effect

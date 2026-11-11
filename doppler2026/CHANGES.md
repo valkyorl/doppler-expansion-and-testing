@@ -5,6 +5,23 @@ outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first. Changes up to version zero (2026-11-04) are
 in the v0 change log, `doppler2026/archive/v0/CHANGES.md` in the git tag `v0`.
 
+## 2026-11-10: Paper lines in the discrepancies document checked against the draft
+
+At the user's request, every **Paper** line in `docs/code_paper_discrepancies.md`
+was checked against the draft. Quoted text was verbatim (equations written in
+plain text); three paraphrases said more than the paper and were corrected:
+
+- A5: the paper does not define a structural-churn baseline; Eq. 18 is only
+  a contrast ("one could choose ..."). Now quoted, with the baseline marked
+  as our methodology.
+- A7: "nothing keeps the number of links" is now labelled as our
+  observation, not the paper's statement.
+- B6: deriving capacity from circuits is now quoted as the paper's extension
+  case; the basic model does not say how a new link's capacity is set.
+
+Added a note at the top: only quoted text is verbatim, everything else is
+paraphrase, and our own observations are labelled. No code changed.
+
 ## 2026-11-10: What K counts, as an option (D33, discrepancy A3)
 
 The user chose option (c): keep the default, and add Eq. 31 read verbatim
