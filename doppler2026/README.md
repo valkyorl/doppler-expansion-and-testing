@@ -183,6 +183,8 @@ same results exactly (timings aside).
 ### Studies
 
 ```bash
+python -m doppler2026.studies.sparsification_synthetic10   # the baseline: 8 layouts x 3 modes, 30 epochs
+python -m doppler2026.studies.sparsification_synthetic10 --epochs 15 --run-id try1   # quicker, for iterating
 python -m doppler2026.studies.sparsification_synthetic4    # 30 epochs x 3 modes, under a minute
 python -m doppler2026.studies.sparsification_synthetic15   # 30 epochs x 3 modes, about 6 minutes
 python -m doppler2026.synthetic --nodes 15 --seed 0          # (re)write a synthetic network

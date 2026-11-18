@@ -7,7 +7,8 @@ The result schema every experiment writes and the figure scripts read
 **The result schema.** Every run writes into
 `data/results/doppler2026/<experiment>/<run_id>/` (studies:
 `data/results/doppler2026/studies/<study>/<run_id>/`, plus a `summary.csv`
-of the study's chosen columns):
+of the study's chosen columns; studies over several layouts add `layouts.csv`,
+one row per layout and mode, and `averages.csv`, their mean per mode):
 
 - `config.json`: the full resolved config, seed, git commit, and package
   versions. This is enough to rerun the experiment exactly.

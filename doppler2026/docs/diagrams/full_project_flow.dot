@@ -1,0 +1,111 @@
+// The whole doppler2026 project, with the attacker => defender epoch loop in
+// the middle. Step numbers match docs/epoch_walkthrough.md.
+// Regenerate from the repository root:
+//   dot -Tpng -Gdpi=130 doppler2026/docs/diagrams/full_project_flow.dot \
+//       -o doppler2026/docs/diagrams/full_project_flow.png
+digraph doppler_project {
+  graph [rankdir=TB, compound=true, newrank=true, nodesep=0.35, ranksep=0.42,
+         fontname="Helvetica", fontsize=15, labelloc=t, pad=0.3,
+         label="Doppler 2026: project flow and the attacker => defender epoch loop\n(defaults: baseline BL1, recon lag L = 2, history h = 3, tau_max = 0.5)\n "];
+  node  [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11,
+         color="#5b6470", fillcolor="#ffffff", margin="0.12,0.07"];
+  edge  [fontname="Helvetica", fontsize=10, color="#4a5260", arrowsize=0.75];
+
+  // ---------------------------------------------------------------- inputs
+  subgraph cluster_inputs {
+    label="Inputs"; style="rounded,filled"; color="#c9ced6"; fillcolor="#f3f4f6";
+    gml    [label="Network file (.gml)\nTopology Zoo, or synthetic.py\ntopology.py"];
+    config [label="Experiment config\nconfigs/*.json, studies/*.py\nrun.py"];
+    paper  [label="Paper draft + decisions\nspecification, D/I/O entries\ndocs/decisions.md", style="rounded,filled,dashed"];
+  }
+
+  // ----------------------------------------------------------------- setup
+  subgraph cluster_setup {
+    label="One-time setup (controller.run)"; style="rounded,filled"; color="#c9ced6"; fillcolor="#f3f4f6";
+    setup [label="G_0 and capacities   |   benign demand D (gravity, busiest link 50%)\nattack budget R_A = 2 x median capacity   |   transponders txp(v) = degree in G_0\nfeasible links E* (at most 2 fiber hops)   |   reference path lengths l(P0) on G_0"];
+  }
+
+  // ------------------------------------------------------------- the loop
+  subgraph cluster_loop {
+    label="Repeat for each epoch t = 0, 1, 2, ...   (network is running topology G_t)";
+    style="rounded,filled"; color="#39424e"; fillcolor="#fbfbfc"; penwidth=1.6; fontsize=14;
+
+    subgraph cluster_attacker {
+      label="ATTACKER (simulated)  §3, §2.4"; style="rounded,filled"; color="#c0392b"; fillcolor="#fdf0ee";
+      node [color="#c0392b"];
+      a1 [label="Step 1. Reconnaissance on G_t\ntraceroute graph (Eq. 5), betweenness B(e) (Eq. 6)\nrecon/traceroute.py"];
+      a2 [label="Step 2. Build plan A_t\ntop link, up to 10 pairs crossing it, r = R_A / |A| (Eq. 7-8)\nrecon/inferred.py, attack_plans.py"];
+      a3 [label="Step 4. The attack that actually runs (t >= L)\nreplay stale plan A_(t-L) on G_t\nlog D(A_(t-L), G_t) and tau = D(A_(t-L), G_t) / D(A_t, G_t)  (Eq. 1)\ndamage.py", fillcolor="#fbdcd7"];
+      a1 -> a2;
+    }
+
+    measure [label="Step 3. Log the running network\nMLU and path stretch of G_t\nfilters.py", color="#7a8290"];
+
+    subgraph cluster_defender {
+      label="DEFENDER (Doppler)  §4.3 - §4.11   controller.defender_step"; style="rounded,filled"; color="#1f6f8b"; fillcolor="#eaf5f9";
+      node [color="#1f6f8b"];
+      gate [shape=diamond, style=filled, margin="0.02,0.02", label="Step 5\nHistory empty?\n(epoch 0)"];
+      d1 [label="Step 6. Links the solver may use\ncurrent links + endpoint moves around busiest\nand previously attacked links (§4.10)\ncandidates.variable_links"];
+      d2 [label="Step 7. Candidate pool, up to K = 50\nMILP: transponders, benign flow, U_max (Eq. 11-16)\nrandom change weights, no repeats\ncandidates.generate"];
+      d3 [shape=diamond, style=filled, margin="0.02,0.02", label="Step 8. Operational filter\nconnected, ECMP MLU <= 0.8,\nstretch <= 3 (Eq. 16-17)\nfilters.py"];
+      d4 [shape=diamond, style=filled, margin="0.02,0.02", label="Step 9. Security filter\nT(G') = max tau(A_i, G') <= 0.5\n(Eq. 19-22)\nsecurity.py"];
+      d5 [shape=diamond, style=filled, margin="0.02,0.02", label="Any safe\ncandidate?\n(Eq. 23)"];
+      d6 [label="Step 10. Select\nlowest MLU within 10%, then random (§4.11)\nselection.py"];
+      drop [label="discard candidate", fillcolor="#f0f1f3", color="#9aa1ab", fontsize=10];
+      gate -> d1 [label=" no"];
+      d1 -> d2 -> d3;
+      d3 -> d4 [label=" pass"];
+      d4 -> d5 [label=" pass"];
+      d5 -> d6 [label=" yes"];
+      d3 -> drop [label=" fail", color="#9aa1ab", fontcolor="#6d7480"];
+      d4 -> drop [label=" fail", color="#9aa1ab", fontcolor="#6d7480"];
+    }
+
+    store [shape=cylinder, style=filled, fillcolor="#efeafa", color="#6a4fb3", margin="0.10,0.08", label="History\nlast 3 (G_i, A_i)\nexcludes current G_t"];
+    stay [label="Stay on G_t\nG_(t+1) = G_t  (D29, D32)", fillcolor="#fff6dc", color="#b58900"];
+    trans [label="Step 11. Transition G_t => G_(t+1)\nE_add, E_remove (Eq. 32-33), ordered by D31\nbenign impact logged per step   transition.py", fillcolor="#e8f6ec", color="#2e7d4f"];
+    hist [label="Step 12. End of epoch\nadd (G_t, A_t) to history, keep newest 3 (Eq. 19-20)\nG_t := G_(t+1), t := t + 1", fillcolor="#efeafa", color="#6a4fb3"];
+  }
+
+  // --------------------------------------------------------------- outputs
+  subgraph cluster_out {
+    label="Results and paper artifacts"; style="rounded,filled"; color="#c9ced6"; fillcolor="#f3f4f6";
+    results [label="data/results/doppler2026/<experiment>/<run>/\nconfig.json, epochs.csv, candidates.csv,\ntransferability.csv, transitions.jsonl\nresults.py"];
+    figs [label="figures/*.py => figures/out/\nstale damage per epoch, RQ1-RQ3, tables"];
+    gaps [label="Not built yet (docs/gaps.md)\n§4 evaluation scripts, packet-level\ntransition testbed, real measurements", style="rounded,filled,dashed", fillcolor="#ffffff"];
+  }
+
+  // ------------------------------------------------------- other experiments
+  subgraph cluster_other {
+    label="Other experiments that reuse the same modules"; style="rounded,filled"; color="#c9ced6"; fillcolor="#f3f4f6";
+    recon [label="Reconnaissance evaluation (§3.7, RQ1-RQ3)\ntraceroute, RTT/Ricci, oracle, no-knowledge attackers\nexperiments/recon_eval.py"];
+    oneep [label="One defender epoch per network\nexperiments/defender_epoch.py"];
+    modes [label="Baseline modes of the same loop\nstatic: skip steps 5-10\nchurn: no step 9, pick least overlap (Eq. 18)"];
+    studies [label="Studies and variants\nstudies/, variants/"];
+  }
+
+  // ------------------------------------------------------------ connections
+  gml -> setup; config -> setup;
+  paper -> config [style=dashed, constraint=false];
+  setup -> a1 [lhead=cluster_attacker];
+
+  a2 -> measure;
+  measure -> a3;
+  a3 -> gate;
+  gate -> stay [label=" yes: nothing to\n check against"];
+  d5 -> stay [label=" no"];
+  d6 -> trans [label=" G_(t+1)"];
+  stay -> trans [label=" no change"];
+  trans -> hist;
+  hist -> a1 [label=" next epoch", color="#6a4fb3", fontcolor="#6a4fb3", penwidth=1.5, constraint=false];
+  hist -> store [style=dashed, color="#6a4fb3", constraint=false];
+  store -> d4 [label=" stale plans\n to test", style=dashed, color="#6a4fb3", fontcolor="#6a4fb3", constraint=false];
+  {rank=same; d4; store}
+
+  hist -> results [lhead=cluster_out, label=" every epoch"];
+  results -> figs;
+  figs -> gaps [style=invis];
+  {rank=same; results; recon}
+  recon -> oneep -> modes -> studies [style=invis];
+  recon -> results [ltail=cluster_other, constraint=false, label=" same result files"];
+}

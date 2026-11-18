@@ -5,6 +5,53 @@ outside this folder, gets an entry here: what changed, why, and which issue it
 addresses. Newest entries first. Changes up to version zero (2026-11-04) are
 in the v0 change log, `doppler2026/archive/v0/CHANGES.md` in the git tag `v0`.
 
+## 2026-11-18: Hand-run walkthrough of the epoch loop and project flow diagram
+
+At the user's request, documentation only; no code or results changed, and no
+new assumption, paper departure, or methodology change.
+
+- `docs/epoch_walkthrough.md`: the attacker => defender loop as pencil-and-paper
+  steps, with equations, paper sections, code links, and a worked 4-PoP example
+  (§2.4, §3.1.2-3.3, §4.3-4.14). Its hand-set toy demand exists only in this
+  document.
+- `docs/diagrams/full_project_flow.dot` and `.png`: the whole project, with the
+  epoch loop in the middle; step numbers match the walkthrough.
+- `docs/diagrams/full_project_flow_simple.py`, `.png`, and `.pdf` (the PDF is
+  git-ignored; regenerate it with the script): a plain-language, per-epoch view
+  with the attacker and Doppler side by side, following the user's layout, for
+  explaining the process to other researchers and as a possible paper figure.
+  Linked from the walkthrough.
+- Checked against `controller.run` with a throwaway independent solver (results
+  in the walkthrough, section 8). Observation, nothing changed: exact ties in
+  B(e) can be reordered by floating-point rounding, so the code does not always
+  apply its tie-break by link name (`recon/inferred.rank`).
+
+## 2026-11-18: The 10-PoP sparsification baseline (BN1)
+
+Decided by the user: eight layouts of a 10-PoP, average-degree-4 network are
+the reference for comparing fixes to the sparsification.
+
+- `studies/sparsification_synthetic10.py` and `topologies/synthetic10_s0.gml`
+  ... `_s7.gml`: static, Doppler, and churn on all eight, 30 epochs
+  (`--epochs 15` for quick comparisons).
+- `studies/common.py`: `run_layout_study` (runs in parallel, one process per
+  run), `layout_summary`, `layout_averages`; new outputs `layouts.csv` and
+  `averages.csv`. `run_study` behaves as before.
+- **Bug fix, `synthetic.py`:** links were added in the order of a Python set,
+  which changes between processes, so a regenerated file could list the same
+  links in a different order, and that order can change results. Links are
+  now sorted. The stored `synthetic4.gml` and `synthetic15.gml` are not
+  rewritten.
+- Run `baseline-2026-11-18`, Doppler, mean over the eight layouts: 20 -> 16.25
+  links; last stale damage 11.0% (static 2.3%). Churn: 20 -> 10.4 links,
+  12.6%. A 15-epoch run with another Python hash seed matched its first 15
+  epochs exactly (`epochs.csv`, `candidates.csv`, timings aside). The run made
+  before the fix is kept as `superseded-unsorted-links-2026-11-18`; layout 3
+  differs between them. Where the order dependence arises is not traced.
+- Tests: `test_d26_studies.py`; link order in `test_d26_synthetic.py`.
+- Docs: `decisions.md` (BN1), `studies/README.md`, `README.md`,
+  `references.md`, `results_schema.md`.
+
 ## 2026-11-10: Paper lines in the discrepancies document checked against the draft
 
 At the user's request, every **Paper** line in `docs/code_paper_discrepancies.md`

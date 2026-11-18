@@ -118,7 +118,11 @@ def generate(config: SyntheticConfig) -> nx.Graph:
         graph = nx.Graph()
         for v, (lat, lon) in positions.items():
             graph.add_node(v, Latitude=lat, Longitude=lon)
-        graph.add_edges_from(_links(config, positions), capacity=config.capacity)
+        # Sorted: a set's order changes between processes, and the order of
+        # the links in the file can change the controller's results.
+        graph.add_edges_from(
+            sorted(_links(config, positions)), capacity=config.capacity
+        )
         if nx.is_connected(graph) and not nx.has_bridges(graph):
             graph.graph.update(
                 name=config.name,

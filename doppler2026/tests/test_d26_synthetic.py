@@ -1,5 +1,9 @@
 """The synthetic network generator (``synthetic.py``)."""
 
+import os
+import subprocess
+import sys
+
 import networkx as nx
 import pytest
 
@@ -57,3 +61,21 @@ def test_four_pop_study_network_links_every_pair():
     graph = generate(SyntheticConfig(name="synthetic4", nodes=4, mean_degree=3.0))
     assert graph.number_of_edges() == 6
     assert all(d == 3 for _, d in graph.degree())
+
+
+def test_link_order_does_not_depend_on_the_hash_seed():
+    code = (
+        "from doppler2026.synthetic import SyntheticConfig, generate;"
+        "print(list(generate(SyntheticConfig(nodes=10, mean_degree=4.0)).edges))"
+    )
+    orders = {
+        subprocess.run(
+            [sys.executable, "-c", code],
+            env={**os.environ, "PYTHONHASHSEED": seed},
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.splitlines()[-1]
+        for seed in ("1", "2", "3")
+    }
+    assert len(orders) == 1

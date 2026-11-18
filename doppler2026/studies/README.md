@@ -29,3 +29,4 @@ Conventions:
 |---|---|---|---|
 | `sparsification_synthetic4` | Does the baseline Doppler make a fully linked 4-PoP network sparser, and what happens to τ, MLU, stretch, and the stale attack's damage? | 2026-11-10 | `baseline-2026-11-10` (L = 1, history with G_t); `lag2-2026-11-10` (L = 2, Eq. 19 history) |
 | `sparsification_synthetic15` | Does the baseline Doppler make a dense 15-PoP synthetic network sparser, and how do τ, MLU, and stretch change as it does? | 2026-11-10 | `baseline-2026-11-10` (L = 1, history with G_t) |
+| `sparsification_synthetic10` | **The baseline (BN1).** How far does Doppler make a 10-PoP network sparser across eight layouts, and what happens to the stale attack's damage, MLU, and stretch? | 2026-11-18 | `baseline-2026-11-18` (the reference); `superseded-unsorted-links-2026-11-18` (same networks, links in unsorted file order; kept to show that order can change results) |
