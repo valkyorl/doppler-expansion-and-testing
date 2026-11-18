@@ -288,3 +288,33 @@ def test_curvature_does_not_fork(monkeypatch):
 
     monkeypatch.setattr(multiprocessing.context.ForkContext, "Pool", no_fork)
     assert rtt_ricci.ricci_curvature(dumbbell())[("a1", "b1")] == pytest.approx(-1 / 3)
+
+
+def _diamond(middles):
+    """s and t joined through each middle node, edges added in the given order."""
+    graph = nx.DiGraph()
+    for m in middles:
+        graph.add_edge("s", m, capacity=1.0, cost=1.0)
+        graph.add_edge(m, "t", capacity=1.0, cost=1.0)
+    return graph
+
+
+def test_ecmp_uses_every_equal_cost_path_in_a_fixed_order():
+    """D34: no path limit, and the result does not depend on edge order."""
+    from doppler2026.routing import route
+
+    config = RoutingConfig()
+    demand = {("s", "t"): 1.0}
+    first = route(_diamond("abcd"), demand, config)[("s", "t")]
+    second = route(_diamond("dcba"), demand, config)[("s", "t")]
+    assert first == second
+    assert [path for path, _ in first] == [("s", m, "t") for m in "abcd"]
+    assert all(share == pytest.approx(0.25) for _, share in first)
+
+
+def test_a_path_budget_can_still_be_set():
+    from doppler2026.routing import route
+
+    limited = RoutingConfig(path_budget=2)
+    routes = route(_diamond("abcd"), {("s", "t"): 1.0}, limited)[("s", "t")]
+    assert len(routes) == 2

@@ -97,8 +97,8 @@ leaves routing general; ECMP is the configured default.
 
 1. Find all shortest paths from s to d, **counting hops**. Distance in km plays
    no part in routing.
-2. Keep at most 3 of them (`path_budget`).
-3. Give each kept path an **equal share**: 1 / (number of kept paths). The split
+2. Keep all of them (no path limit, decision D34).
+3. Give each path an **equal share**: 1 / (number of paths). The split
    is per path, not per hop.
 
 Routes do not depend on traffic, so an attack does not move any traffic.

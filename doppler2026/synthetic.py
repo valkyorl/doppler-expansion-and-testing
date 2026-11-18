@@ -118,8 +118,8 @@ def generate(config: SyntheticConfig) -> nx.Graph:
         graph = nx.Graph()
         for v, (lat, lon) in positions.items():
             graph.add_node(v, Latitude=lat, Longitude=lon)
-        # Sorted: a set's order changes between processes, and the order of
-        # the links in the file can change the controller's results.
+        # Sorted: a set's order changes between processes, so the file would
+        # otherwise differ from one generation to the next.
         graph.add_edges_from(
             sorted(_links(config, positions)), capacity=config.capacity
         )

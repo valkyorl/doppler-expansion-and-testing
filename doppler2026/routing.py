@@ -40,6 +40,10 @@ def directed(topology: nx.Graph) -> nx.DiGraph:
     return graph
 
 
+SMORE_PATH_BUDGET = 3
+"""Paths per pair for methods other than ECMP when none is set (the engine's
+default; D34 lifts the limit for ECMP only)."""
+
 TRAFFIC_INDEPENDENT = frozenset({"ecmp"})
 """TE methods whose routes depend only on the graph, never on the demands."""
 
@@ -59,11 +63,16 @@ def route(
     (``tests/test_d26_recon.py`` checks this).
     """
     if config.te_method not in TRAFFIC_INDEPENDENT:
+        budget = config.path_budget
         return route_demands(
-            graph, demands, config.te_method, config.path_budget, seed=config.seed
+            graph,
+            demands,
+            config.te_method,
+            SMORE_PATH_BUDGET if budget is None else budget,
+            seed=config.seed,
         )
-    # Edge order is part of the key: with more equal-cost paths than the
-    # path budget, which paths are kept can depend on it.
+    # Edge order is part of the key: with a path budget set and more
+    # equal-cost paths than it allows, which paths are kept can depend on it.
     key = (
         config.te_method,
         config.path_budget,
@@ -77,6 +86,9 @@ def route(
         routes = route_demands(
             graph, everything, config.te_method, config.path_budget, seed=config.seed
         )
+        # Sorted: the engine lists paths in edge order, and a simulated probe
+        # picks one by its position in this list (D34).
+        routes = {pair: sorted(options) for pair, options in routes.items()}
         _route_cache[key] = routes
         if len(_route_cache) > _CACHE_SIZE:
             _route_cache.popitem(last=False)

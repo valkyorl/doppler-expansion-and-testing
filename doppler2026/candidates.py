@@ -206,10 +206,10 @@ def build_topology(
 ) -> nx.Graph:
     """The topology with ``links`` active: original PoPs (with coordinates), C_e.
 
-    Links are added in sorted order. Edge order matters: ECMP keeps the first
-    few equal-cost paths (the path budget), and their order follows the
-    order edges were added. Adding them in set order made results depend on
-    Python's per-process string hashing.
+    Links are added in sorted order. Edge order can matter when a path budget
+    is set: ECMP then keeps the first few equal-cost paths, and their order
+    follows the order edges were added (D34). Adding them in set order made
+    results depend on Python's per-process string hashing.
     """
     graph = nx.Graph()
     graph.add_nodes_from(original.nodes(data=True))

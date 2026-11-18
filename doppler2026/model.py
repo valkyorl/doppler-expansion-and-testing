@@ -71,11 +71,12 @@ class RoutingConfig:
 
     ``te_method`` is one of the existing engine's methods: ``ecmp`` (default;
     does not react to traffic), ``mcf``, ``semimcfraeke``, ``semimcfraekeft``.
-    ``path_budget`` caps ECMP/SMORE paths per pair, as in the existing engine.
+    ``path_budget`` caps the paths per pair. ``None`` (default, D34) means ECMP
+    uses every equal-cost path; the SMORE methods keep the engine's 3.
     """
 
     te_method: str = "ecmp"
-    path_budget: int = 3
+    path_budget: int | None = None
     seed: int | None = None
 
 
